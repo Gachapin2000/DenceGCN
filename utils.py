@@ -14,7 +14,7 @@ from torch_geometric.utils.convert import to_networkx
 def accuracy(output, labels):
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
-    return correct
+    return correct.sum() / len(labels), correct
 
 
 class HomophilyRank:

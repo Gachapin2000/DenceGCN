@@ -1,6 +1,7 @@
 import os.path as osp
 import argparse
 import numpy as np
+import yaml
 
 import torch
 import torch.nn.functional as F
@@ -8,11 +9,11 @@ from torch_scatter import scatter
 import torch_geometric.transforms as T
 
 from data import Planetoid
-from models import DenceGCN, JKGCN, JKNet, GATNet, GCN
+from models import return_net
 from utils import accuracy, HomophilyRank
 
 
-def train(epoch, args, data, model, optimizer):
+def train(epoch, config, data, model, optimizer):
     # train
     model.train()
     optimizer.zero_grad()
@@ -20,7 +21,7 @@ def train(epoch, args, data, model, optimizer):
     # train by class label
     prob_labels = model(data.x, data.edge_index)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
-    acc_train  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
+    acc_train, _  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
 
     loss_train.backward()
     optimizer.step()
@@ -29,7 +30,7 @@ def train(epoch, args, data, model, optimizer):
     model.eval()
     prob_labels_val = model(data.x, data.edge_index)
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
-    acc_val = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
+    acc_val, _ = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
     
     print('Epoch: {:04d}'.format(epoch),
           'loss_train: {:.4f}'.format(loss_train.data.item()),
@@ -40,16 +41,16 @@ def train(epoch, args, data, model, optimizer):
     return loss_val
 
 
-def test(args, data, model):
+def test(config, data, model):
     model.eval()
     prob_labels_test = model(data.x, data.edge_index)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
     top = data.homophily_rank[:500]
     bot = data.homophily_rank[-500:]
-    acc = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
-    acc_top = accuracy(prob_labels_test[top], data.y[top])
-    acc_bot = accuracy(prob_labels_test[bot], data.y[bot])
+    acc, _ = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
+    acc_top, _ = accuracy(prob_labels_test[top], data.y[top])
+    acc_bot, _ = accuracy(prob_labels_test[bot], data.y[bot])
 
     print("Test set results:",
           "loss(test)= {:.4f}".format(loss_test.data.item()),
@@ -61,7 +62,7 @@ def test(args, data, model):
     '''step_weight = torch.sum(model.lin.weight, dim=0)
     step_idx = 0
     idx = []
-    num_layers = [args.hidden for _ in range(args.layer)]
+    num_layers = [config['hidden'] for _ in range(config.layer)]
     for num_layer in num_layers:
         for _ in range(num_layer):
             idx.append(step_idx)
@@ -73,28 +74,29 @@ def test(args, data, model):
     return acc
 
 
-def run(args):
-    '''print('seed: {}'.format(args.seed))
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    np.random.seed(args.seed)
+def run(config):
+    '''torch.manual_seed(config['seed'])
+    torch.cuda.manual_seed(config['seed'])
+    np.random.seed(config['seed'])
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False'''
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = Planetoid('../data/{}'.format(args.dataset), args.dataset, split='full', transform=T.NormalizeFeatures())
+    dataset = Planetoid('../data/{}'.format(config['dataset']), config['dataset'], split='public', transform=T.NormalizeFeatures())
     data = dataset[0].to(device)
     print(data)
 
-    n_features, n_class = data.x.size()[1], torch.max(data.y).data.item() + 1
-    model = GATNet(args.dataset, n_features, args.hidden, args.layer, n_class, args.dropout, 8).to(device)
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    config['n_feat']  = data.x.size()[1]
+    config['n_class'] = torch.max(data.y).data.item() + 1
+    model = return_net(config).to(device)
+    optimizer = torch.optim.Adam(params       = model.parameters(), 
+                                 lr           = config['learning_rate'], 
+                                 weight_decay = config['weight_decay'])
 
     best_loss = 100.
     bad_counter = 0
-    for epoch in range(1, args.epochs):
-        loss_val = train(epoch, args, data, model, optimizer)
+    for epoch in range(1, config['epochs']):
+        loss_val = train(epoch, config, data, model, optimizer)
 
         if(loss_val < best_loss):
             best_loss = loss_val
@@ -102,34 +104,26 @@ def run(args):
         else:
             bad_counter += 1
         print('bad_counter: {}'.format(bad_counter))
-        if(bad_counter == args.patience):
+        if(bad_counter == config['patience']):
             break
-    
-    test_acc = test(args, data, model)
+    test_acc = test(config, data, model)
 
     return test_acc
 
 
 def main():
-    # Training settings
     parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-    parser.add_argument('--dataset', type=str, default='Cora', help='name of dataset of {Cora, CiteSeer, PubMed}')
-    parser.add_argument('--epochs', type=int, default=500, help='Number of epochs to train.')
-    parser.add_argument('--patience', type=int, default=100, help='the number to stop training.')
-    parser.add_argument('--lr', type=float, default=0.01, help='Initial learning rate.')
-    parser.add_argument('--weight_decay', type=float, default=5e-4, help='Weight decay (L2 loss on parameters).')
-    parser.add_argument('--hidden', type=int, default=12, help='Number of hidden units.')
-    parser.add_argument('--layer', type=int, default=8, help='Number of hidden layers.')
-    parser.add_argument('--dropout', type=float, default=0.5, help='Dropout rate (1 - keep probability).')
-    parser.add_argument('--aggr', type=str, default='add', help='How to aggregate')
+    parser.add_argument('--key', type=str, default='JKNet_CiteSeer')
     args = parser.parse_args()
 
-    n_of_tri = 1
-    test_acc = np.zeros(n_of_tri)
-    for tri in range(n_of_tri):
-        test_acc[tri] = run(args)
-    print('\twhole test accuracies({} tries) = {}'.format(n_of_tri, test_acc))
+    with open('./config.yaml') as file:
+        obj = yaml.safe_load(file)
+        config = obj[args.key]
+
+    test_acc = np.zeros(config['n_tri'])
+    for tri in range(config['n_tri']):
+        test_acc[tri] = run(config)
+    print('\twhole test accuracies({} tries) = {}'.format(config['n_tri'], test_acc))
     print('\tave: {:.3f} max: {:.3f} min: {:.3f}' \
             .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
     

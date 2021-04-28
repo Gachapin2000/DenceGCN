@@ -36,4 +36,3 @@ class GCNConv(MessagePassing):
 
     def message(self, x_j, norm):
         return norm.view(-1, 1) * x_j
-

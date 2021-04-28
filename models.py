@@ -10,8 +10,8 @@ from torchviz import make_dot
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree
 
-from torch_geometric.nn import JumpingKnowledge, GATConv, GCNConv
-# from layers import GCNConv
+from torch_geometric.nn import JumpingKnowledge, GATConv
+from layers import GCNConv
 
 import math
 
@@ -153,108 +153,109 @@ class DenceGCN(nn.Module):
 
 class JKNet(nn.Module):
 
-    def __init__(self, num_features=1433, num_hiddens=16, num_classes=7, num_layers=6, dropout=0.5, mode="cat", aggr="add", act="ReLU"):
-
-        super().__init__()
-
-        self.num_features = num_features
-        self.num_hiddens = num_hiddens
-        self.num_classes = num_classes
-        self.num_layers = num_layers
+    def __init__(self, n_feat, n_hid, n_class, dropout, mode):
+        super(JKNet, self).__init__()
+        self.n_layers = [n_feat] + n_hid
+        self.n_conv = len(self.n_layers)-1
         self.dropout = dropout
-        self.aggr = aggr
-        self.act_name = act
-        self.act = eval(f"F.{act.lower()}")
-
-        self.gc0 = GCNConv(num_features, num_hiddens, aggr=aggr)
-
-        self.hiddens = nn.ModuleList([
-            GCNConv(num_hiddens, num_hiddens, aggr=aggr) for _ in range(1, self.num_layers)
-                    ])
-
-        self.dropouts = nn.ModuleList([
-            nn.Dropout(dropout) for _ in range(1, self.num_layers)
-                    ])
+        
+        self.layers = torch.nn.ModuleList()
+        self.drops  = torch.nn.ModuleList()
+        for idx in range(self.n_conv):
+            self.layers.append(GCNConv(self.n_layers[idx], self.n_layers[idx+1], aggr='add'))
+            self.drops.append(nn.Dropout(dropout))
 
         self.jk = JumpingKnowledge(mode)
-
         if mode == "cat":
-            self.lin = nn.Linear(num_layers * num_hiddens, num_classes)
+            self.lin = nn.Linear(sum(n_hid), n_class)
         elif mode == "max":
-            # self.lin = nn.Linear(num_layers * num_hiddens, num_classes)
-            self.lin = nn.Identity()
-
+            self.lin = nn.Linear(n_hid[-1], n_class)
 
     def forward(self, x, edge_index):
 
         xs = []
-        x = self.gc0(x, edge_index)
-        xs.append(x)
-
-        for layer, dropout in zip(self.hiddens, self.dropouts):
-
-            x = dropout(self.act(layer(x, edge_index)))
+        for layer, drop in zip(self.layers, self.drops):
+            x = layer(x, edge_index)
+            x = F.relu(x)
+            x = drop(x)
             xs.append(x)
 
-        h = self.jk(xs)
-
+        h = torch.stack(xs, dim=0)
+        h = torch.max(h, dim=0)[0]
         h = self.lin(h)
         return F.log_softmax(h, dim=1)
 
-    def __str__(self):
-
-        return "JKNet"
-
-    def __repr__(self):
-
-        return f"JKNet(num_feature={self.num_features}, num_hiddens={self.num_hiddens}, num_classes={self.num_classes}, num_layer={self.num_layers}, dropout={self.dropout}, aggr={self.aggr}, act={self.act_name})"
-
 
 class GATNet(nn.Module):
-    def __init__(self, dataset, nfeat, nhid, nlayers, nclass, dropout, nheads):
-        """Dense version of GAT."""
+    def __init__(self, n_feat, n_hid, n_class, dropout, n_head, iscat):
         super(GATNet, self).__init__()
+        self.n_layers = [n_feat] + n_hid + [n_class]
+        self.n_conv = len(self.n_layers)-1
         self.dropout = dropout
 
-        self.gat_layers = torch.nn.ModuleList()
-        self.gat_layers.append(GATConv(nfeat, nclass, heads=nheads, dropout=dropout, concat=False))
-        '''for _ in range(1, nlayers):
-            self.gat_layers.append(GATConv(nhid*nheads, nhid*nheads, heads=1, dropout=dropout))
-
-        if(dataset == 'PubMed'):
-            self.out_att = GATConv(nhid * nheads, nclass, heads=nheads, dropout=dropout, concat=False)
-        else:
-            self.out_att = GATConv(nhid * nheads, nclass, heads=1, dropout=dropout)'''
+        self.layers = torch.nn.ModuleList()
+        for idx in range(self.n_conv):
+            if(iscat[idx] == True):
+                input_features = n_head[idx] * self.n_layers[idx]
+            else:
+                input_features = self.n_layers[idx]
+                
+            self.layers.append(GATConv(in_channels  = input_features, 
+                                       out_channels = self.n_layers[idx+1],
+                                       heads        = n_head[idx+1], 
+                                       concat       = iscat[idx+1], 
+                                       dropout      = self.dropout))
 
     def forward(self, x, edge_index):
-        for gat in self.gat_layers:
+        for layer in self.layers:
             x = F.dropout(x, self.dropout, training=self.training)
-            x = gat(x, edge_index)
-        '''x = F.dropout(x, self.dropout, training=self.training)
-        x = self.out_att(x, edge_index)'''
+            x = layer(x, edge_index)
         x = F.elu(x)
         return F.log_softmax(x, dim=1)
 
 
 class GCN(nn.Module):
-    def __init__(self, n_feat, hid, dropout):
-        torch.manual_seed(0)
+    def __init__(self, n_feat, n_hid, n_class, dropout):
         super(GCN, self).__init__()
-        self.layers = [n_feat] + hid
-        self.n_conv = len(self.layers)-1
+        self.n_layers = [n_feat] + n_hid + [n_class]
+        self.n_conv = len(self.n_layers)-1
         self.dropout = dropout
         
-        self.gc_layers = torch.nn.ModuleList()
+        self.layers = torch.nn.ModuleList()
         for idx in range(self.n_conv):
-            self.gc_layers.append(GCNConv(self.layers[idx], self.layers[idx+1]))
+            self.layers.append(GCNConv(self.n_layers[idx], self.n_layers[idx+1]))
 
     def forward(self, x, edge_index):
-        for idx in range(self.n_conv - 1):
-            x = self.gc_layers[idx](x, edge_index)
+        for layer in self.layers[0:-1]:
+            x = layer(x, edge_index)
             x = F.relu(x)
             x = F.dropout(x, self.dropout, training=self.training)
 
         # iff the last convolutional layer, we don't use relu and dropout
-        x = self.gc_layers[-1](x, edge_index)
+        x = self.layers[-1](x, edge_index)
 
         return F.log_softmax(x, dim=1)
+
+
+def return_net(args):
+    if args['model'] == 'GCN':
+        return GCN(n_feat  = args['n_feat'],
+                   n_hid   = args['n_hid'],
+                   n_class = args['n_class'],
+                   dropout = args['dropout'])
+
+    elif args['model'] == 'GATNet':
+        return GATNet(n_feat  = args['n_feat'],
+                      n_hid   = args['n_hid'],
+                      n_class = args['n_class'],
+                      dropout = args['dropout'],
+                      n_head = args['n_head'],
+                      iscat   = args['iscat'])
+    
+    elif args['model'] == 'JKNet':
+        return JKNet(n_feat  = args['n_feat'],
+                     n_hid   = args['n_hid'],
+                     n_class = args['n_class'],
+                     dropout = args['dropout'],
+                     mode    = args['mode'])
+    

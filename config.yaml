@@ -1,0 +1,91 @@
+GNN: &GNN
+  n_tri: 10
+  seed: 42
+  epochs: 200
+  patience: 100
+  learning_rate: 0.01
+  weight_decay: 0.0005
+  dropout: 0.5
+
+
+GCN: &GCN
+  <<: *GNN
+  model: GCN
+  n_hid: [16]
+
+GCN_Cora: &GCN_Cora
+  <<: *GCN
+  dataset: Cora
+
+GCN_CiteSeer: &GCN_CiteSeer
+  <<: *GCN
+  dataset: CiteSeer
+
+GCN_PubMed: &GCN_PubMed
+  <<: *GCN
+  dataset: PubMed
+
+GCN_toy: &GCN_toy
+  <<: *GCN
+  dataset: FiveUniqueNodes
+  n_hid: [2] # override >> GCN
+
+
+GATNet: &GATNet
+  <<: *GNN
+  model: GATNet
+  n_hid: [8]
+  dropout: 0.6 # override >> GNN
+
+GATNet_Cora: &GATNet_Cora
+  <<: *GATNet
+  dataset: Cora
+  n_head: [1,8,1]
+  iscat: [False,True,False]
+
+GATNet_CiteSeer: &GATNet_CiteSeer
+  <<: *GATNet
+  dataset: CiteSeer
+  n_head: [1,8,1]
+  iscat: [False,True,False]
+
+GATNet_PubMed: &GATNet_PubMed
+  <<: *GATNet
+  dataset: PubMed
+  weight_decay: 0.001 # override >> GNN
+  n_head: [1,8,8]
+  iscat: [False,True,False]
+
+GATNet_toy: &GATNet_toy
+  <<: *GATNet
+  dataset: FiveUniqueNodes
+  n_hid: [2] # override >> GATNet
+  n_head: [1,8,1]
+  iscat: [False,True,False]
+
+
+JKNet: &JKNet
+  <<: *GNN
+  model: JKNet
+  n_hid: [16,16,16,16,16]
+
+JKNet_Cora: &JKNet_Cora
+  <<: *JKNet
+  dataset: Cora
+  mode: 'max'
+
+JKNet_CiteSeer: &JKNet_CiteSeer
+  <<: *JKNet
+  dataset: CiteSeer
+  mode: 'cat'
+
+JKNet_PubMed: &JKNet_PubMed
+  <<: *JKNet
+  dataset: PubMed
+  mode: 'max'
+
+JKNet_toy: &JKNet_toy
+  <<: *JKNet
+  dataset: FiveUniqueNodes
+  n_hid: [2,2,2,2,2] # override >> JKNet
+  mode: 'cat'
