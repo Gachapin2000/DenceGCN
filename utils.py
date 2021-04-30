@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
+import argparse
 
 import torch
 import torch.nn.functional as F
@@ -16,6 +17,15 @@ def accuracy(output, labels):
     correct = preds.eq(labels).double()
     return correct.sum() / len(labels), correct
 
+class DictProcessor(argparse.Action):
+    def __call__(self, parser, namespace, values, option_strings=None):
+        param_dict = getattr(namespace,self.dest,[])
+        if param_dict is None:
+            param_dict = {}
+
+        k, v = values.split("=")
+        param_dict[k] = v
+        setattr(namespace, self.dest, param_dict)
 
 class HomophilyRank:
     def __init__(self, mode='avg'):

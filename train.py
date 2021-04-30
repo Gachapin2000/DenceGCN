@@ -32,11 +32,11 @@ def train(epoch, config, data, model, optimizer):
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
     acc_val, _ = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
     
-    print('Epoch: {:04d}'.format(epoch),
+    '''print('Epoch: {:04d}'.format(epoch),
           'loss_train: {:.4f}'.format(loss_train.data.item()),
           'acc_train: {:.4f}'.format(acc_train.data.item()),
           'loss_val: {:.4f}'.format(loss_val.data.item()),
-          'acc_val: {:.4f}'.format(acc_val.data.item()), end=' ')
+          'acc_val: {:.4f}'.format(acc_val.data.item()), end=' ')'''
 
     return loss_val
 
@@ -82,9 +82,12 @@ def run(config):
     torch.backends.cudnn.benchmark = False'''
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = Planetoid('../data/{}'.format(config['dataset']), config['dataset'], split='public', transform=T.NormalizeFeatures())
+    dataset = Planetoid(root      = '../data/{}'.format(config['dataset']), 
+                        name      = config['dataset'], 
+                        split     = config['split'], 
+                        transform = eval(config['norm']))
     data = dataset[0].to(device)
-    print(data)
+    # print(data)
 
     config['n_feat']  = data.x.size()[1]
     config['n_class'] = torch.max(data.y).data.item() + 1
@@ -103,7 +106,7 @@ def run(config):
             bad_counter = 0
         else:
             bad_counter += 1
-        print('bad_counter: {}'.format(bad_counter))
+        # print('bad_counter: {}'.format(bad_counter))
         if(bad_counter == config['patience']):
             break
     test_acc = test(config, data, model)
@@ -123,6 +126,7 @@ def main():
     test_acc = np.zeros(config['n_tri'])
     for tri in range(config['n_tri']):
         test_acc[tri] = run(config)
+    print('config: {}'.format(config))
     print('\twhole test accuracies({} tries) = {}'.format(config['n_tri'], test_acc))
     print('\tave: {:.3f} max: {:.3f} min: {:.3f}' \
             .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))

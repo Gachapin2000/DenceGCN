@@ -11,7 +11,8 @@ import torch_geometric.transforms as T
 
 from data import FiveUniqueNodes, Planetoid
 from models import return_net
-from utils import accuracy, HomophilyRank
+from utils import accuracy, HomophilyRank, DictProcessor
+from debug import visualize_gat
 
 
 def train(epoch, config, data, model, optimizer):
@@ -20,7 +21,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    prob_labels = model(data.x, data.edge_index)
+    prob_labels, _ = model(data.x, data.edge_index)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     _, correct = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
 
@@ -34,7 +35,9 @@ def train(epoch, config, data, model, optimizer):
 
 def test(config, data, model):
     model.eval()
-    prob_labels_test = model(data.x, data.edge_index)
+    prob_labels_test, (atts, es) = model(data.x, data.edge_index)
+    v = visualize_gat(atts, es, data, 18)
+    v.visualize()
     loss_test = F.nll_loss(prob_labels_test, data.y)
 
     # top = data.homophily_rank[:5]
@@ -77,9 +80,11 @@ def run(config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--key', type=str, default='GCN_toy')
+    parser.add_argument('--key', type=str, default='GATNet_toy')
+    parser.add_argument("--override", action=DictProcessor)
     args = parser.parse_args()
 
+    # load parameters of config.yaml
     with open('./config.yaml') as file:
         obj = yaml.safe_load(file)
         config = obj[args.key]
@@ -90,6 +95,7 @@ def main():
     correct = torch.stack(correct, axis=0)
     whole_correct = torch.mean(correct, axis=0)
 
+    print('config: {}'.format(config))
     for idx, acc in enumerate(whole_correct):
         print('{}'.format(int(acc.data.item()*100)), end=' ')
     print('{:.1f}'.format(int(torch.mean(whole_correct)*100.)))

@@ -156,12 +156,11 @@ class JKNet(nn.Module):
     def __init__(self, n_feat, n_hid, n_class, dropout, mode):
         super(JKNet, self).__init__()
         self.n_layers = [n_feat] + n_hid
-        self.n_conv = len(self.n_layers)-1
         self.dropout = dropout
         
         self.layers = torch.nn.ModuleList()
         self.drops  = torch.nn.ModuleList()
-        for idx in range(self.n_conv):
+        for idx in range(len(self.n_layers)-1):
             self.layers.append(GCNConv(self.n_layers[idx], self.n_layers[idx+1], aggr='add'))
             self.drops.append(nn.Dropout(dropout))
 
@@ -180,8 +179,7 @@ class JKNet(nn.Module):
             x = drop(x)
             xs.append(x)
 
-        h = torch.stack(xs, dim=0)
-        h = torch.max(h, dim=0)[0]
+        h = self.jk(xs)
         h = self.lin(h)
         return F.log_softmax(h, dim=1)
 
@@ -190,11 +188,10 @@ class GATNet(nn.Module):
     def __init__(self, n_feat, n_hid, n_class, dropout, n_head, iscat):
         super(GATNet, self).__init__()
         self.n_layers = [n_feat] + n_hid + [n_class]
-        self.n_conv = len(self.n_layers)-1
         self.dropout = dropout
 
         self.layers = torch.nn.ModuleList()
-        for idx in range(self.n_conv):
+        for idx in range(len(self.n_layers)-1):
             if(iscat[idx] == True):
                 input_features = n_head[idx] * self.n_layers[idx]
             else:
@@ -207,22 +204,24 @@ class GATNet(nn.Module):
                                        dropout      = self.dropout))
 
     def forward(self, x, edge_index):
+        atts, es = [], []
         for layer in self.layers:
             x = F.dropout(x, self.dropout, training=self.training)
-            x = layer(x, edge_index)
+            x, (edge_index_, alpha) = layer(x, edge_index, return_attention_weights=True)
+            atts.append(alpha)
+            es.append(edge_index_)
         x = F.elu(x)
-        return F.log_softmax(x, dim=1)
+        return F.log_softmax(x, dim=1), (atts, es)
 
 
 class GCN(nn.Module):
     def __init__(self, n_feat, n_hid, n_class, dropout):
         super(GCN, self).__init__()
         self.n_layers = [n_feat] + n_hid + [n_class]
-        self.n_conv = len(self.n_layers)-1
         self.dropout = dropout
         
         self.layers = torch.nn.ModuleList()
-        for idx in range(self.n_conv):
+        for idx in range(len(self.n_layers)-1):
             self.layers.append(GCNConv(self.n_layers[idx], self.n_layers[idx+1]))
 
     def forward(self, x, edge_index):
@@ -257,5 +256,5 @@ def return_net(args):
                      n_hid   = args['n_hid'],
                      n_class = args['n_class'],
                      dropout = args['dropout'],
-                     mode    = args['mode'])
+                     mode    = args['jk_mode'])
     
