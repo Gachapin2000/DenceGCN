@@ -2,6 +2,7 @@ import os.path as osp
 import argparse
 import numpy as np
 import yaml
+import statistics
 
 import torch
 import torch.nn.functional as F
@@ -87,7 +88,10 @@ def run(config):
                         split     = config['split'], 
                         transform = eval(config['norm']))
     data = dataset[0].to(device)
-    # print(data)
+    print(data.x)
+    l = [len(torch.where(data.x[i]>=1)[0].tolist()) for i in range(data.x.size()[0])]
+    print('mean: {}'.format(statistics.mean(l)))
+    print('var: {}'.format(statistics.stdev(l)))
 
     config['n_feat']  = data.x.size()[1]
     config['n_class'] = torch.max(data.y).data.item() + 1
@@ -116,7 +120,7 @@ def run(config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--key', type=str, default='JKNet_CiteSeer')
+    parser.add_argument('--key', type=str, default='GCN_Cora')
     args = parser.parse_args()
 
     with open('./config.yaml') as file:
