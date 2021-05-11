@@ -21,7 +21,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    prob_labels, _ = model(data.x, data.edge_index)
+    prob_labels = model(data.x, data.edge_index)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     _, correct = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
 
@@ -35,9 +35,9 @@ def train(epoch, config, data, model, optimizer):
 
 def test(config, data, model):
     model.eval()
-    prob_labels_test, (atts, es) = model(data.x, data.edge_index)
-    v = visualize_gat(atts, es, data, 18)
-    v.visualize()
+    prob_labels_test = model(data.x, data.edge_index)
+    '''v = visualize_gat(atts, es, data, 18)
+    v.visualize()'''
     loss_test = F.nll_loss(prob_labels_test, data.y)
 
     # top = data.homophily_rank[:5]

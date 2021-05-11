@@ -11,7 +11,7 @@ import torch_geometric.transforms as T
 
 from data import Planetoid
 from models import return_net
-from utils import accuracy, HomophilyRank
+from utils import accuracy, HomophilyRank, DictProcessor
 
 
 def train(epoch, config, data, model, optimizer):
@@ -76,22 +76,12 @@ def test(config, data, model):
 
 
 def run(config):
-    '''torch.manual_seed(config['seed'])
-    torch.cuda.manual_seed(config['seed'])
-    np.random.seed(config['seed'])
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False'''
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dataset = Planetoid(root      = '../data/{}'.format(config['dataset']), 
                         name      = config['dataset'], 
                         split     = config['split'], 
                         transform = eval(config['norm']))
     data = dataset[0].to(device)
-    print(data.x)
-    l = [len(torch.where(data.x[i]>=1)[0].tolist()) for i in range(data.x.size()[0])]
-    print('mean: {}'.format(statistics.mean(l)))
-    print('var: {}'.format(statistics.stdev(l)))
 
     config['n_feat']  = data.x.size()[1]
     config['n_class'] = torch.max(data.y).data.item() + 1
@@ -110,7 +100,6 @@ def run(config):
             bad_counter = 0
         else:
             bad_counter += 1
-        # print('bad_counter: {}'.format(bad_counter))
         if(bad_counter == config['patience']):
             break
     test_acc = test(config, data, model)
@@ -121,6 +110,7 @@ def run(config):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--key', type=str, default='GCN_Cora')
+    parser.add_argument('--override', action=DictProcessor)
     args = parser.parse_args()
 
     with open('./config.yaml') as file:

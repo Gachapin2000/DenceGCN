@@ -16,65 +16,37 @@ from layers import GCNConv
 import math
 
 
-class JKGCN(nn.Module):
+class UniqGCN(nn.Module):
     
-    def __init__(self, num_features=1433, num_hiddens=16, num_classes=7, num_layers=6, dropout=0.5, aggr="add", add_self_loop=True, act="ReLU"):
+    def __init__(self, n_feat, n_hid, n_layer, n_class, dropout):
+        super(UniqGCN, self).__init__()
 
-        super().__init__()
-        self.num_features = num_features
-        self.num_hiddens = num_hiddens
-        self.num_classes = num_classes
-        self.num_layers = num_layers
-        self.dropout = dropout
-        self.aggr = aggr
-        self.act_name = act
-        self.add_self_loop = add_self_loop
-        self.act = eval(f"F.{act.lower()}")
+        self.in_gc = GCNConv(n_feat, n_hid)
+        self.in_drop = nn.Dropout(dropout)
 
-        # self.adjuster = nn.Linear(num_features, num_hiddens)
-        layers, jks = [], []
-
-        for i in range(1, self.num_layers+1):
-            jks.append(JumpingKnowledge("lstm", channels=num_hiddens, num_layers=i))
-            layers.append(
-                GCNConv(num_hiddens,
-                        num_hiddens,
-                        add_self_loops=add_self_loop,
-                        aggr=aggr))
-            
+        layers, jks, dropouts = [], [], []
+        for i in range(1, n_layer-1):
+            jks.append(JumpingKnowledge("lstm", channels=n_hid, num_layers=i))   
+            layers.append(GCNConv(n_hid, n_hid, aggr='add'))
+            dropouts.append(nn.Dropout(dropout))
         self.jks = nn.ModuleList(jks)
         self.layers = nn.ModuleList(layers)
+        self.dropouts = nn.ModuleList(dropouts)
 
-        self.dropouts = nn.ModuleList([
-            nn.Dropout(dropout) for _ in range(self.num_layers)])
-
-        # self.bns = nn.ModuleList([
-        #     nn.BatchNorm1d() for _ in range(self.num_layers)])
-
-        # TODO:
-        self.jk = JumpingKnowledge("lstm", channels=num_hiddens, num_layers=self.num_layers+1)
-        self.lin = nn.Linear(num_hiddens, num_classes)
+        self.out_jk = JumpingKnowledge("lstm", channels=n_hid, num_layers=n_layer-1)
+        self.out_gc = GCNConv(n_hid, n_class)
 
     def forward(self, x, edge_index):
-        # x = self.adjuster(x) # (2708, 1433) -> (2708, 16)
+        x = self.in_drop(F.relu(self.in_gc(x, edge_index)))
+        
         xs = [x]
-        # x = self.gc0(x, edge_index)
-        # xs.append(x)
-
         for jk, layer, dropout in zip(self.jks, self.layers, self.dropouts):
             x = jk(xs)
-            x = dropout(self.act(layer(x, edge_index)))
+            x = dropout(F.relu(layer(x, edge_index)))
             xs.append(x)
 
-        self.hiddens = [x.cpu().clone().detach() for x in xs]
-        # xs is [ h0, h1, h2, ..., hL ]
-        h = self.jk(xs)
-        # h is (n, d0+d1+d2+...+dL) tensor
-        self.hiddens.append(h.cpu().clone().detach())
-
-        h = self.lin(h)
-        # h is (n, c) tensor
-        self.hiddens.append(h.cpu().clone().detach())
+        x = self.out_jk(xs)
+        h = self.out_gc(x, edge_index)
         return F.log_softmax(h, dim=1)
 
 
@@ -153,30 +125,34 @@ class DenceGCN(nn.Module):
 
 class JKNet(nn.Module):
 
-    def __init__(self, n_feat, n_hid, n_class, dropout, mode):
+    def __init__(self, n_feat, n_hid, n_layer, n_class, dropout, mode):
         super(JKNet, self).__init__()
-        self.n_layers = [n_feat] + n_hid
-        self.dropout = dropout
+
+        self.in_gc = GCNConv(n_feat, n_hid)
+        self.in_drop = nn.Dropout(dropout)
         
         self.layers = torch.nn.ModuleList()
         self.drops  = torch.nn.ModuleList()
-        for idx in range(len(self.n_layers)-1):
-            self.layers.append(GCNConv(self.n_layers[idx], self.n_layers[idx+1], aggr='add'))
+        for idx in range(n_layer-1):
+            self.layers.append(GCNConv(n_hid, n_hid, aggr='add'))
             self.drops.append(nn.Dropout(dropout))
 
-        self.jk = JumpingKnowledge(mode)
-        if mode == "cat":
-            self.lin = nn.Linear(sum(n_hid), n_class)
-        elif mode == "max":
-            self.lin = nn.Linear(n_hid[-1], n_class)
+        if(mode == 'lstm'):
+            self.jk = JumpingKnowledge('lstm', channels=n_hid, num_layers=n_layer)
+        else: # if mode == 'cat' or 'max'
+            self.jk = JumpingKnowledge(mode)
+
+        if mode == 'cat':
+            self.lin = nn.Linear(n_hid*n_layer, n_class)
+        else: # if mode == 'max' or 'lstm'
+            self.lin = nn.Linear(n_hid, n_class)
 
     def forward(self, x, edge_index):
+        x = self.in_drop(F.relu(self.in_gc(x, edge_index)))
 
-        xs = []
+        xs = [x]
         for layer, drop in zip(self.layers, self.drops):
-            x = layer(x, edge_index)
-            x = F.relu(x)
-            x = drop(x)
+            x = drop(F.relu(layer(x, edge_index)))
             xs.append(x)
 
         h = self.jk(xs)
@@ -211,7 +187,7 @@ class GATNet(nn.Module):
             atts.append(alpha)
             es.append(edge_index_)
         x = F.elu(x)
-        return F.log_softmax(x, dim=1), (atts, es)
+        return F.log_softmax(x, dim=1)
 
 
 class GCN(nn.Module):
@@ -254,7 +230,14 @@ def return_net(args):
     elif args['model'] == 'JKNet':
         return JKNet(n_feat  = args['n_feat'],
                      n_hid   = args['n_hid'],
+                     n_layer = args['n_layer'],
                      n_class = args['n_class'],
                      dropout = args['dropout'],
                      mode    = args['jk_mode'])
-    
+
+    elif args['model'] == 'UniqGCN':
+        return UniqGCN(n_feat  = args['n_feat'],
+                       n_hid   = args['n_hid'],
+                       n_layer = args['n_layer'],
+                       n_class = args['n_class'],
+                       dropout = args['dropout'])

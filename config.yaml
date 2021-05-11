@@ -1,4 +1,24 @@
+# -------datasets-------
+Cora: &Cora
+  dataset: Cora
+  norm: None
+
+CiteSeer: &CiteSeer
+  dataset: CiteSeer
+  norm: T.NormalizeFeatures()
+
+PubMed: &PubMed
+  dataset: PubMed
+  norm: None
+
+FiveUniqueNodes: &FiveUniqueNodes
+  dataset: FiveUniqueNodes
+  n_tri: 100
+
+  
+# -------models-------
 GNN: &GNN
+  split: 'full'
   n_tri: 10
   seed: 42
   epochs: 200
@@ -15,19 +35,19 @@ GCN: &GCN
 
 GCN_Cora: &GCN_Cora
   <<: *GCN
-  dataset: Cora
+  <<: *Cora
 
 GCN_CiteSeer: &GCN_CiteSeer
   <<: *GCN
-  dataset: CiteSeer
+  <<: *CiteSeer
 
 GCN_PubMed: &GCN_PubMed
   <<: *GCN
-  dataset: PubMed
+  <<: *PubMed
 
 GCN_toy: &GCN_toy
   <<: *GCN
-  dataset: FiveUniqueNodes
+  <<: *FiveUniqueNodes
   n_hid: [2] # override >> GCN
 
 
@@ -35,57 +55,95 @@ GATNet: &GATNet
   <<: *GNN
   model: GATNet
   n_hid: [8]
+  n_head: [1,8,1]
+  iscat: [False,True,False]
   dropout: 0.6 # override >> GNN
 
 GATNet_Cora: &GATNet_Cora
   <<: *GATNet
-  dataset: Cora
-  n_head: [1,8,1]
-  iscat: [False,True,False]
+  <<: *Cora
+  norm: T.NormalizeFeatures() # override >> Cora
 
 GATNet_CiteSeer: &GATNet_CiteSeer
   <<: *GATNet
-  dataset: CiteSeer
-  n_head: [1,8,1]
-  iscat: [False,True,False]
+  <<: *CiteSeer
 
 GATNet_PubMed: &GATNet_PubMed
   <<: *GATNet
-  dataset: PubMed
+  <<: *PubMed
+  split: 'public'
   weight_decay: 0.001 # override >> GNN
-  n_head: [1,8,8]
-  iscat: [False,True,False]
+  n_head: [1,8,8] # override >> GATNet
+  iscat: [False,True,False] # override >> GATNet
+
+GATNet_PubMed_Super: &GATNet_PubMed_Super
+  <<: *GATNet
+  <<: *PubMed
+  split: 'full'
 
 GATNet_toy: &GATNet_toy
   <<: *GATNet
-  dataset: FiveUniqueNodes
-  n_hid: [2] # override >> GATNet
-  n_head: [1,8,1]
-  iscat: [False,True,False]
+  <<: *FiveUniqueNodes
+  dropout: 0.2 # override >> GNN
+  n_hid:  [2,2] # override >> GATNet
+  n_head: [1,1,1,1] # override >> GATNet
+  iscat:  [False,False,False,False] # override >> GATNet
 
 
 JKNet: &JKNet
   <<: *GNN
   model: JKNet
-  n_hid: [16,16,16,16,16]
+  learning_rate: 0.005 # override >> GNN
+  n_hid: 32
 
 JKNet_Cora: &JKNet_Cora
   <<: *JKNet
-  dataset: Cora
-  mode: 'max'
+  <<: *Cora
+  n_layer: 7
+  jk_mode: cat
 
 JKNet_CiteSeer: &JKNet_CiteSeer
   <<: *JKNet
-  dataset: CiteSeer
-  mode: 'cat'
+  <<: *CiteSeer
+  n_layer: 1
+  jk_mode: cat
 
 JKNet_PubMed: &JKNet_PubMed
   <<: *JKNet
-  dataset: PubMed
-  mode: 'max'
+  <<: *PubMed
+  n_layer: 6
+  jk_mode: max
 
 JKNet_toy: &JKNet_toy
   <<: *JKNet
-  dataset: FiveUniqueNodes
-  n_hid: [2,2,2,2,2] # override >> JKNet
-  mode: 'cat'
+  <<: *FiveUniqueNodes
+  learning_rate: 0.01 # override >> JKNet
+  n_layer: 6
+  jk_mode: cat
+
+
+UniqGCN: &UniqGCN
+  <<: *GNN
+  model: UniqGCN
+  n_hid: 16
+
+UniqGCN_Cora: &UniqGCN_Cora
+  <<: *UniqGCN
+  <<: *Cora
+  n_layer: 6
+
+UniqGCN_CiteSeer: &UniqGCN_CiteSeer
+  <<: *UniqGCN
+  <<: *CiteSeer
+  n_layer: 10
+
+UniqGCN_PubMed: &UniqGCN_PubMed
+  <<: *UniqGCN
+  <<: *PubMed
+  n_layer: 10
+
+UniqGCN_toy: &UniqGCN_toy
+  <<: *UniqGCN
+  <<: *FiveUniqueNodes
+  n_hid: 2 # override >> UniqGCN
+  n_layer: 7
