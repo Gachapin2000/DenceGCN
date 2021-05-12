@@ -8,10 +8,10 @@ from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
 from torchviz import make_dot
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, degree
+from torch_geometric.utils import add_self_loops, degree, to_dense_adj
 
-from torch_geometric.nn import JumpingKnowledge, GATConv
-from layers import GCNConv
+from torch_geometric.nn import GATConv
+from layers import GCNConv, JumpingKnowledge
 
 import math
 
@@ -155,7 +155,7 @@ class JKNet(nn.Module):
             x = drop(F.relu(layer(x, edge_index)))
             xs.append(x)
 
-        h = self.jk(xs)
+        h = self.jk(xs) # xs = [h1,h2,h3,...,hL], h is (n, d)
         h = self.lin(h)
         return F.log_softmax(h, dim=1)
 

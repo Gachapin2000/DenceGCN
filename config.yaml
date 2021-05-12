@@ -18,7 +18,7 @@ FiveUniqueNodes: &FiveUniqueNodes
   
 # -------models-------
 GNN: &GNN
-  split: 'full'
+  split: 'full_60per'
   n_tri: 10
   seed: 42
   epochs: 200
@@ -99,8 +99,8 @@ JKNet: &JKNet
 JKNet_Cora: &JKNet_Cora
   <<: *JKNet
   <<: *Cora
-  n_layer: 7
-  jk_mode: cat
+  n_layer: 6
+  jk_mode: lstm
 
 JKNet_CiteSeer: &JKNet_CiteSeer
   <<: *JKNet

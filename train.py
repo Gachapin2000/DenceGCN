@@ -82,6 +82,7 @@ def run(config):
                         split     = config['split'], 
                         transform = eval(config['norm']))
     data = dataset[0].to(device)
+    print(len(torch.where(data.train_mask==True)[0].tolist()))
 
     config['n_feat']  = data.x.size()[1]
     config['n_class'] = torch.max(data.y).data.item() + 1
@@ -109,7 +110,7 @@ def run(config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--key', type=str, default='GCN_Cora')
+    parser.add_argument('--key', type=str, default='JKNet_Cora')
     parser.add_argument('--override', action=DictProcessor)
     args = parser.parse_args()
 
