@@ -19,7 +19,7 @@ FiveUniqueNodes: &FiveUniqueNodes
 # -------models-------
 GNN: &GNN
   split: 'full_60per'
-  n_tri: 10
+  n_tri: 1
   seed: 42
   epochs: 200
   patience: 100
@@ -125,7 +125,7 @@ JKNet_toy: &JKNet_toy
 UniqGCN: &UniqGCN
   <<: *GNN
   model: UniqGCN
-  n_hid: 16
+  n_hid: 32
 
 UniqGCN_Cora: &UniqGCN_Cora
   <<: *UniqGCN

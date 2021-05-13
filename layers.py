@@ -39,9 +39,10 @@ class GCNConv(MessagePassing):
 
 
 class JumpingKnowledge(torch.nn.Module):
-    def __init__(self, mode, channels=None, num_layers=None):
+    def __init__(self, mode, att_mode='go', channels=None, num_layers=None):
         super(JumpingKnowledge, self).__init__()
         self.mode = mode.lower()
+        self.att_mode = att_mode.lower()
         assert self.mode in ['cat', 'max', 'lstm']
 
         if mode == 'lstm':
@@ -51,8 +52,7 @@ class JumpingKnowledge(torch.nn.Module):
                 channels, (num_layers * channels) // 2,
                 bidirectional=True,
                 batch_first=True)
-            self.att = Linear(2 * ((num_layers * channels) // 2), 1)
-            # lstm(d,dl/2), att(dl,1) , n_layer=6, hid=32
+            self.att = Linear(2*(num_layers * channels) // 2, 1)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -70,10 +70,24 @@ class JumpingKnowledge(torch.nn.Module):
             return torch.stack(xs, dim=-1).max(dim=-1)[0]
         elif self.mode == 'lstm':
             x = torch.stack(xs, dim=1)  # x (n, l, d)
-            alpha, _ = self.lstm(x) # alpha (n, l, dl), _ (2, n, dl/2) for h and c
-            alpha = self.att(alpha).squeeze(-1) # alpha (n, l, 1) -> (n, l)
+            alpha, _ = self.lstm(x) # alpha (n, l, dl), _[0] (n, dl/2) for h and c
+            
+            if(self.att_mode in ['sd', 'mx']): # SD or MX
+                dim = alpha.size()[-1]
+                alpha_f, alpha_b = alpha[:,:,:dim//2], alpha[:,:,dim//2:]
+
+                sd = (alpha_f * alpha_b).sum(dim=-1)
+                if(self.att_mode == 'sd'): # SD
+                    alpha = sd / math.sqrt(dim//2)
+                else: # MX
+                    alpha = self.att(alpha).squeeze(-1)
+                    alpha = alpha * torch.sigmoid(sd)
+            
+            else: # GO
+                alpha = self.att(alpha).squeeze(-1)
+            
             alpha = torch.softmax(alpha, dim=-1)
-            return (x * alpha.unsqueeze(-1)).sum(dim=1) # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
+            return alpha, (x * alpha.unsqueeze(-1)).sum(dim=1) # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.mode)

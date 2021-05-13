@@ -20,7 +20,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    prob_labels = model(data.x, data.edge_index)
+    alpha, prob_labels = model(data.x, data.edge_index)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     acc_train, _  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
 
@@ -29,7 +29,7 @@ def train(epoch, config, data, model, optimizer):
 
     # validation
     model.eval()
-    prob_labels_val = model(data.x, data.edge_index)
+    _, prob_labels_val = model(data.x, data.edge_index)
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
     acc_val, _ = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
     
@@ -39,12 +39,14 @@ def train(epoch, config, data, model, optimizer):
           'loss_val: {:.4f}'.format(loss_val.data.item()),
           'acc_val: {:.4f}'.format(acc_val.data.item()), end=' ')'''
 
+    np.save('./att_epoch{}'.format(epoch), alpha.to('cpu').detach().numpy().copy())
+
     return loss_val
 
 
 def test(config, data, model):
     model.eval()
-    prob_labels_test = model(data.x, data.edge_index)
+    _, prob_labels_test = model(data.x, data.edge_index)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
     top = data.homophily_rank[:500]

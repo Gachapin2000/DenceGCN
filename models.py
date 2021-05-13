@@ -138,7 +138,7 @@ class JKNet(nn.Module):
             self.drops.append(nn.Dropout(dropout))
 
         if(mode == 'lstm'):
-            self.jk = JumpingKnowledge('lstm', channels=n_hid, num_layers=n_layer)
+            self.jk = JumpingKnowledge('lstm', 'mx', channels=n_hid, num_layers=n_layer)
         else: # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
@@ -155,9 +155,9 @@ class JKNet(nn.Module):
             x = drop(F.relu(layer(x, edge_index)))
             xs.append(x)
 
-        h = self.jk(xs) # xs = [h1,h2,h3,...,hL], h is (n, d)
+        alpha, h = self.jk(xs) # xs = [h1,h2,h3,...,hL], h is (n, d)
         h = self.lin(h)
-        return F.log_softmax(h, dim=1)
+        return alpha, F.log_softmax(h, dim=1)
 
 
 class GATNet(nn.Module):
