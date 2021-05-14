@@ -39,7 +39,7 @@ class GCNConv(MessagePassing):
 
 
 class JumpingKnowledge(torch.nn.Module):
-    def __init__(self, mode, att_mode='go', channels=None, num_layers=None):
+    def __init__(self, mode, att_mode, channels=None, num_layers=None):
         super(JumpingKnowledge, self).__init__()
         self.mode = mode.lower()
         self.att_mode = att_mode.lower()

@@ -14,5 +14,5 @@ for i, file in enumerate(sorted(glob.glob('./*.npy'), key=lambda f:os.stat(f).st
 
 for e in [0,50,100,162]:
     plt.figure()
-    sns.heatmap(atts[e], vmax=1., vmin=0., center=0.5)
-    plt.savefig('./JKlstm_DP_att{}.png'.format(e))
+    sns.heatmap(atts[e], vmax=1., vmin=0., center=0.5, cmap='Reds')
+    plt.savefig('./JKlstm_SD_att{}.png'.format(e))

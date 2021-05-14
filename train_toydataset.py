@@ -21,7 +21,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    prob_labels = model(data.x, data.edge_index)
+    alpha, prob_labels = model(data.x, data.edge_index)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     _, correct = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
 
@@ -32,10 +32,13 @@ def train(epoch, config, data, model, optimizer):
           'loss_train: {:.4f}'.format(loss_train.data.item()),
           'acc_train: {:.4f}'.format(acc_train.data.item()))'''
 
+    np.save('./att_epoch{}'.format(epoch), alpha.to('cpu').detach().numpy().copy())
+
+
 
 def test(config, data, model):
     model.eval()
-    prob_labels_test = model(data.x, data.edge_index)
+    alpha, prob_labels_test = model(data.x, data.edge_index)
     '''v = visualize_gat(atts, es, data, 18)
     v.visualize()'''
     loss_test = F.nll_loss(prob_labels_test, data.y)

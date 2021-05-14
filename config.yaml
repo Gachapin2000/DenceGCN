@@ -1,25 +1,30 @@
 # -------datasets-------
+Planetoid: &Planetoid
+  split: 'public'
+  n_tri: 10
+
 Cora: &Cora
+  <<: *Planetoid
   dataset: Cora
   norm: None
 
 CiteSeer: &CiteSeer
+  <<: *Planetoid
   dataset: CiteSeer
   norm: T.NormalizeFeatures()
 
 PubMed: &PubMed
+  <<: *Planetoid
   dataset: PubMed
   norm: None
 
 FiveUniqueNodes: &FiveUniqueNodes
   dataset: FiveUniqueNodes
-  n_tri: 100
+  n_tri: 10
 
   
 # -------models-------
 GNN: &GNN
-  split: 'full_60per'
-  n_tri: 1
   seed: 42
   epochs: 200
   patience: 100
@@ -99,8 +104,9 @@ JKNet: &JKNet
 JKNet_Cora: &JKNet_Cora
   <<: *JKNet
   <<: *Cora
-  n_layer: 6
+  n_layer: 5
   jk_mode: lstm
+  att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
 
 JKNet_CiteSeer: &JKNet_CiteSeer
   <<: *JKNet
@@ -118,9 +124,10 @@ JKNet_toy: &JKNet_toy
   <<: *JKNet
   <<: *FiveUniqueNodes
   learning_rate: 0.01 # override >> JKNet
-  n_layer: 6
-  jk_mode: cat
-
+  n_hid: 2 # override >> UniqGCN
+  n_layer: 5
+  jk_mode: lstm
+  att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
 
 UniqGCN: &UniqGCN
   <<: *GNN
@@ -130,7 +137,7 @@ UniqGCN: &UniqGCN
 UniqGCN_Cora: &UniqGCN_Cora
   <<: *UniqGCN
   <<: *Cora
-  n_layer: 6
+  n_layer: 10
 
 UniqGCN_CiteSeer: &UniqGCN_CiteSeer
   <<: *UniqGCN

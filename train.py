@@ -120,6 +120,10 @@ def main():
         obj = yaml.safe_load(file)
         config = obj[args.key]
 
+    '''for param, val in args.override.items():
+        print(param, val)
+        config[param] = eval(val)'''
+
     test_acc = np.zeros(config['n_tri'])
     for tri in range(config['n_tri']):
         test_acc[tri] = run(config)

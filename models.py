@@ -125,7 +125,7 @@ class DenceGCN(nn.Module):
 
 class JKNet(nn.Module):
 
-    def __init__(self, n_feat, n_hid, n_layer, n_class, dropout, mode):
+    def __init__(self, n_feat, n_hid, n_layer, n_class, dropout, mode, att_mode):
         super(JKNet, self).__init__()
 
         self.in_gc = GCNConv(n_feat, n_hid)
@@ -138,7 +138,7 @@ class JKNet(nn.Module):
             self.drops.append(nn.Dropout(dropout))
 
         if(mode == 'lstm'):
-            self.jk = JumpingKnowledge('lstm', 'mx', channels=n_hid, num_layers=n_layer)
+            self.jk = JumpingKnowledge('lstm', att_mode, channels=n_hid, num_layers=n_layer)
         else: # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
@@ -228,12 +228,13 @@ def return_net(args):
                       iscat   = args['iscat'])
     
     elif args['model'] == 'JKNet':
-        return JKNet(n_feat  = args['n_feat'],
-                     n_hid   = args['n_hid'],
-                     n_layer = args['n_layer'],
-                     n_class = args['n_class'],
-                     dropout = args['dropout'],
-                     mode    = args['jk_mode'])
+        return JKNet(n_feat   = args['n_feat'],
+                     n_hid    = args['n_hid'],
+                     n_layer  = args['n_layer'],
+                     n_class  = args['n_class'],
+                     dropout  = args['dropout'],
+                     mode     = args['jk_mode'],
+                     att_mode = args['att_mode'])
 
     elif args['model'] == 'UniqGCN':
         return UniqGCN(n_feat  = args['n_feat'],
