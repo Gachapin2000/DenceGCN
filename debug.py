@@ -88,3 +88,5 @@ class visualize_gat:
         nx.draw_networkx_labels(G, pos)
         nx.draw_networkx_edges(G, pos, edge_color=edge_color, width=edge_width)
         plt.savefig('visualize.png')
+
+

@@ -3,13 +3,12 @@ import networkx as nx
 import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 import torch
 from torch_geometric.data import Data, InMemoryDataset, download_url
 from torch_geometric.io import read_planetoid_data
 from torch_geometric.utils.convert import to_networkx
-
-
 
 
 class FiveUniqueNodes(InMemoryDataset):

@@ -1,9 +1,11 @@
 import os.path as osp
 import argparse
 import numpy as np
-import yaml
 import statistics
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
+import torchvision.transforms as transforms
 import torch
 import torch.nn.functional as F
 from torch_scatter import scatter
@@ -20,7 +22,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    alpha, prob_labels = model(data.x, data.edge_index)
+    _, prob_labels = model(data.x, data.edge_index)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     acc_train, _  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
 
@@ -39,55 +41,30 @@ def train(epoch, config, data, model, optimizer):
           'loss_val: {:.4f}'.format(loss_val.data.item()),
           'acc_val: {:.4f}'.format(acc_val.data.item()), end=' ')'''
 
-    np.save('./att_epoch{}'.format(epoch), alpha.to('cpu').detach().numpy().copy())
-
     return loss_val
 
 
 def test(config, data, model):
     model.eval()
-    _, prob_labels_test = model(data.x, data.edge_index)
+    alpha, prob_labels_test = model(data.x, data.edge_index)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
-    top = data.homophily_rank[:500]
-    bot = data.homophily_rank[-500:]
+    top = data.homophily_rank['avg'][:500]
+    bot = data.homophily_rank['avg'][-500:]
     acc, _ = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
     acc_top, _ = accuracy(prob_labels_test[top], data.y[top])
     acc_bot, _ = accuracy(prob_labels_test[bot], data.y[bot])
 
-    print("Test set results:",
+    '''print("Test set results:",
           "loss(test)= {:.4f}".format(loss_test.data.item()),
           "accuracy(test)= {:.4f}".format(acc.data.item()),
           "accuracy(top)= {:.4f}".format(acc_top.data.item()),
-          "accuracy(bottom)= {:.4f}".format(acc_bot.data.item()))
+          "accuracy(bottom)= {:.4f}".format(acc_bot.data.item()))'''
 
-    # validate weights for step
-    '''step_weight = torch.sum(model.lin.weight, dim=0)
-    step_idx = 0
-    idx = []
-    num_layers = [config['hidden'] for _ in range(config.layer)]
-    for num_layer in num_layers:
-        for _ in range(num_layer):
-            idx.append(step_idx)
-        step_idx += 1
-    idx = torch.tensor(idx).to(step_weight.device)
-    step_weight = scatter(step_weight, idx, dim=0, reduce='sum')
-    print(step_weight)'''
-
-    return acc
+    return acc, acc_top, acc_bot, alpha
 
 
-def run(config):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = Planetoid(root      = '../data/{}'.format(config['dataset']), 
-                        name      = config['dataset'], 
-                        split     = config['split'], 
-                        transform = eval(config['norm']))
-    data = dataset[0].to(device)
-    print(len(torch.where(data.train_mask==True)[0].tolist()))
-
-    config['n_feat']  = data.x.size()[1]
-    config['n_class'] = torch.max(data.y).data.item() + 1
+def run(data, config, device):
     model = return_net(config).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
                                  lr           = config['learning_rate'], 
@@ -105,33 +82,52 @@ def run(config):
             bad_counter += 1
         if(bad_counter == config['patience']):
             break
-    test_acc = test(config, data, model)
 
-    return test_acc
+    return test(config, data, model)
 
+
+@hydra.main(config_name="./config.yaml")
+def load(cfg : DictConfig) -> None:
+    global config
+    config = cfg[cfg.key]
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--key', type=str, default='JKNet_Cora')
-    parser.add_argument('--override', action=DictProcessor)
-    args = parser.parse_args()
+    global config
+    print(config)
 
-    with open('./config.yaml') as file:
-        obj = yaml.safe_load(file)
-        config = obj[args.key]
-
-    '''for param, val in args.override.items():
-        print(param, val)
-        config[param] = eval(val)'''
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    dataset = Planetoid(root          = root,
+                        name          = config['dataset'], 
+                        split         = config['split'], 
+                        transform     = eval(config['transform']),
+                        pre_transform = eval(config['pre_transform']))
+    data = dataset[0].to(device)
 
     test_acc = np.zeros(config['n_tri'])
+    test_acc_top = np.zeros(config['n_tri'])
+    test_acc_bot = np.zeros(config['n_tri'])
+    alphas = []
     for tri in range(config['n_tri']):
-        test_acc[tri] = run(config)
-    print('config: {}'.format(config))
-    print('\twhole test accuracies({} tries) = {}'.format(config['n_tri'], test_acc))
-    print('\tave: {:.3f} max: {:.3f} min: {:.3f}' \
-            .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
+        test_acc[tri], test_acc_top[tri], test_acc_bot[tri], alpha = run(data, config, device)
+        alphas.append(alpha)
+    print('config: {}\n'.format(config))
+    for acc_criteria in ['test_acc', 'test_acc_top', 'test_acc_bot']:
+        acc = eval(acc_criteria)
+        print('whole {} ({} tries) = {}'.format(acc_criteria, config['n_tri'], acc))
+        print('\tave={:.3f} max={:.3f} min={:.3f}' \
+              .format(np.mean(acc), np.max(acc), np.min(acc)))
     
+    best_epoch = np.argmax(test_acc)
+    alpha = alphas[best_epoch]
+    alpha_avg = alpha[data.homophily_rank['avg']]
+    alpha_homo = alpha[data.homophily_rank['homo']]
+    alpha_hetero = alpha[data.homophily_rank['hetero']]
+    np.save('./result/{}_JKlstm_{}_layerwise_att.npy'.format(config['dataset'], config['att_mode']), alpha.to('cpu').detach().numpy().copy())
+    np.save('./result/{}_JKlstm_{}_layerwise_att_avg.npy'.format(config['dataset'], config['att_mode']), alpha_avg.to('cpu').detach().numpy().copy())
+    np.save('./result/{}_JKlstm_{}_layerwise_att_homo.npy'.format(config['dataset'], config['att_mode']), alpha_homo.to('cpu').detach().numpy().copy())
+    np.save('./result/{}_JKlstm_{}_layerwise_att_hetero.npy'.format(config['dataset'], config['att_mode']), alpha_hetero.to('cpu').detach().numpy().copy())
 
 if __name__ == "__main__":
+    load()
     main()

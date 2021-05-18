@@ -1,18 +1,13 @@
-import numpy as np
-import os
 import glob
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
-import re
+import os
 
-
-atts = []
-for i, file in enumerate(sorted(glob.glob('./*.npy'), key=lambda f:os.stat(f).st_mtime)):
-    att = np.load(file)
-    atts.append(att)
-
-for e in [0,50,100,162]:
+for file in glob.glob('./result/*.npy'):
     plt.figure()
-    sns.heatmap(atts[e], vmax=1., vmin=0., center=0.5, cmap='Reds')
-    plt.savefig('./JKlstm_SD_att{}.png'.format(e))
+    att = np.load(file)
+    os.remove(file)
+    sns.heatmap(att, vmin=0., vmax=1., center=0.4, cmap='Reds')
+    plt.savefig(os.path.splitext(file)[0] + '.png')
+    plt.close()

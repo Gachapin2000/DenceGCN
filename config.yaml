@@ -1,25 +1,37 @@
+key: GCN_Cora
+
+
 # -------datasets-------
 Planetoid: &Planetoid
+  pre_transform: HomophilyRank()
   split: 'public'
   n_tri: 10
 
 Cora: &Cora
   <<: *Planetoid
   dataset: Cora
-  norm: None
+  n_feat: 1433
+  n_class: 7
+  transform: None
 
 CiteSeer: &CiteSeer
   <<: *Planetoid
   dataset: CiteSeer
-  norm: T.NormalizeFeatures()
+  n_feat: 3703
+  n_class: 6
+  transform: T.NormalizeFeatures()
 
 PubMed: &PubMed
   <<: *Planetoid
   dataset: PubMed
-  norm: None
+  n_feat: 500
+  n_class: 3
+  transform: None
 
-FiveUniqueNodes: &FiveUniqueNodes
-  dataset: FiveUniqueNodes
+FiveUniqNodes: &FiveUniqNodes
+  dataset: FiveUniqNodes
+  n_feat: 2
+  n_class: 2
   n_tri: 10
 
   
@@ -39,20 +51,16 @@ GCN: &GCN
   n_hid: [16]
 
 GCN_Cora: &GCN_Cora
-  <<: *GCN
-  <<: *Cora
+  <<: [*GCN, *Cora]
 
 GCN_CiteSeer: &GCN_CiteSeer
-  <<: *GCN
-  <<: *CiteSeer
+  <<: [*GCN, *CiteSeer]
 
 GCN_PubMed: &GCN_PubMed
-  <<: *GCN
-  <<: *PubMed
+  <<: [*GCN, *PubMed]
 
 GCN_toy: &GCN_toy
-  <<: *GCN
-  <<: *FiveUniqueNodes
+  <<: [*GCN, *FiveUniqNodes]
   n_hid: [2] # override >> GCN
 
 
@@ -65,30 +73,25 @@ GATNet: &GATNet
   dropout: 0.6 # override >> GNN
 
 GATNet_Cora: &GATNet_Cora
-  <<: *GATNet
-  <<: *Cora
-  norm: T.NormalizeFeatures() # override >> Cora
+  <<: [*GATNet, *Cora]
+  transform: T.NormalizeFeatures() # override >> Cora
 
 GATNet_CiteSeer: &GATNet_CiteSeer
-  <<: *GATNet
-  <<: *CiteSeer
+  <<: [*GATNet, *CiteSeer]
 
 GATNet_PubMed: &GATNet_PubMed
-  <<: *GATNet
-  <<: *PubMed
+  <<: [*GATNet, *PubMed]
   split: 'public'
   weight_decay: 0.001 # override >> GNN
   n_head: [1,8,8] # override >> GATNet
   iscat: [False,True,False] # override >> GATNet
 
 GATNet_PubMed_Super: &GATNet_PubMed_Super
-  <<: *GATNet
-  <<: *PubMed
+  <<: [*GATNet, *PubMed]
   split: 'full'
 
 GATNet_toy: &GATNet_toy
-  <<: *GATNet
-  <<: *FiveUniqueNodes
+  <<: [*GATNet, *FiveUniqNodes]
   dropout: 0.2 # override >> GNN
   n_hid:  [2,2] # override >> GATNet
   n_head: [1,1,1,1] # override >> GATNet
@@ -100,34 +103,27 @@ JKNet: &JKNet
   model: JKNet
   learning_rate: 0.005 # override >> GNN
   n_hid: 32
+  n_layer: 6
 
 JKNet_Cora: &JKNet_Cora
-  <<: *JKNet
-  <<: *Cora
-  n_layer: 5
-  jk_mode: lstm
-  att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+  <<: [*JKNet, *Cora]
+  jk_mode: max
 
 JKNet_CiteSeer: &JKNet_CiteSeer
-  <<: *JKNet
-  <<: *CiteSeer
-  n_layer: 1
+  <<: [*JKNet, *CiteSeer]
   jk_mode: cat
 
 JKNet_PubMed: &JKNet_PubMed
-  <<: *JKNet
-  <<: *PubMed
-  n_layer: 6
+  <<: [*JKNet, *PubMed]
   jk_mode: max
 
 JKNet_toy: &JKNet_toy
-  <<: *JKNet
-  <<: *FiveUniqueNodes
+  <<: [*JKNet, *FiveUniqNodes]
   learning_rate: 0.01 # override >> JKNet
-  n_hid: 2 # override >> UniqGCN
-  n_layer: 5
+  n_hid: 2 # override >> JKNet
   jk_mode: lstm
   att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+
 
 UniqGCN: &UniqGCN
   <<: *GNN
@@ -135,22 +131,18 @@ UniqGCN: &UniqGCN
   n_hid: 32
 
 UniqGCN_Cora: &UniqGCN_Cora
-  <<: *UniqGCN
-  <<: *Cora
+  <<: [*UniqGCN, *Cora]
   n_layer: 10
 
 UniqGCN_CiteSeer: &UniqGCN_CiteSeer
-  <<: *UniqGCN
-  <<: *CiteSeer
+  <<: [*UniqGCN, *CiteSeer]
   n_layer: 10
 
 UniqGCN_PubMed: &UniqGCN_PubMed
-  <<: *UniqGCN
-  <<: *PubMed
+  <<: [*UniqGCN, *PubMed]
   n_layer: 10
 
 UniqGCN_toy: &UniqGCN_toy
-  <<: *UniqGCN
-  <<: *FiveUniqueNodes
+  <<: [*UniqGCN, *FiveUniqNodes]
   n_hid: 2 # override >> UniqGCN
   n_layer: 7
