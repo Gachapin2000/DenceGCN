@@ -3,36 +3,50 @@ key: GCN_Cora
 
 # -------datasets-------
 Planetoid: &Planetoid
+  task: transductive
   pre_transform: HomophilyRank()
   split: 'public'
   n_tri: 10
 
 Cora: &Cora
-  <<: *Planetoid
   dataset: Cora
+  <<: *Planetoid
+  transform: None
   n_feat: 1433
   n_class: 7
-  transform: None
 
 CiteSeer: &CiteSeer
-  <<: *Planetoid
   dataset: CiteSeer
+  <<: *Planetoid
+  transform: T.NormalizeFeatures()
   n_feat: 3703
   n_class: 6
-  transform: T.NormalizeFeatures()
 
 PubMed: &PubMed
-  <<: *Planetoid
   dataset: PubMed
+  <<: *Planetoid
+  transform: None
   n_feat: 500
   n_class: 3
+
+PPI: &PPI
+  task: inductive
+  dataset: PPI
+  pre_transform: None
   transform: None
+  n_feat: 50
+  n_class: 121
+  n_tri: 10
+  learning_rate: 0.005 # override >> GNN
+  weight_decay: 0.     # override >> GNN
 
 FiveUniqNodes: &FiveUniqNodes
   dataset: FiveUniqNodes
+  pre_transform: HomophilyRank()
+  transform: None
   n_feat: 2
   n_class: 2
-  n_tri: 10
+  n_tri: 30
 
   
 # -------models-------
@@ -58,6 +72,10 @@ GCN_CiteSeer: &GCN_CiteSeer
 
 GCN_PubMed: &GCN_PubMed
   <<: [*GCN, *PubMed]
+
+GCN_PPI: &GCN_PPI
+  <<: [*GCN, *PPI]
+  n_hid: [256, 256] # override >> GCN
 
 GCN_toy: &GCN_toy
   <<: [*GCN, *FiveUniqNodes]
@@ -90,6 +108,13 @@ GATNet_PubMed_Super: &GATNet_PubMed_Super
   <<: [*GATNet, *PubMed]
   split: 'full'
 
+GATNet_PPI: &GATNet_PPI
+  <<: [*GATNet, *PPI]
+  n_hid: [256,256]  # override >> GATNet
+  n_head: [1,4,4,6] # override >> GATNet
+  iscat: [False,True,True,False] # override >> GATNet
+  dropout: 0. # override >> GNN
+
 GATNet_toy: &GATNet_toy
   <<: [*GATNet, *FiveUniqNodes]
   dropout: 0.2 # override >> GNN
@@ -102,20 +127,31 @@ JKNet: &JKNet
   <<: *GNN
   model: JKNet
   learning_rate: 0.005 # override >> GNN
-  n_hid: 32
+  n_hid: 16
   n_layer: 6
 
 JKNet_Cora: &JKNet_Cora
   <<: [*JKNet, *Cora]
   jk_mode: max
+  att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
 
 JKNet_CiteSeer: &JKNet_CiteSeer
   <<: [*JKNet, *CiteSeer]
+  n_layer: 1 # override >> JKNet
   jk_mode: cat
+  att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
 
 JKNet_PubMed: &JKNet_PubMed
   <<: [*JKNet, *PubMed]
   jk_mode: max
+  att_mode: sd # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+  
+JKNet_PPI: &JKNet_PPI
+  <<: [*JKNet, *PPI]
+  n_hid: 256
+  n_layer: 2 # override >> JKNet
+  jk_mode: lstm
+  att_mode: go
 
 JKNet_toy: &JKNet_toy
   <<: [*JKNet, *FiveUniqNodes]

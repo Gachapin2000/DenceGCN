@@ -8,41 +8,46 @@ from tqdm import trange, tqdm
 
 from torch.nn import Module, Parameter, Linear, LSTM
 
-from torch_geometric.nn import MessagePassing
+from torch_geometric.nn import MessagePassing, GATConv, GCNConv
 from torch_geometric.utils import add_self_loops, degree
 
 
-class GCNConv(MessagePassing):
+class GeneralConv(nn.Module):
+    def __init__(self, task, conv_name, in_channels, out_channels, n_heads=1, iscat=False, dropout=0.):
+        super(GeneralConv, self).__init__()
 
-    def __init__(self, in_channels, out_channels, aggr='add', add_self_loops=True):
-        super(GCNConv, self).__init__(aggr=aggr)
+        self.conv_name = conv_name
+        self.task = task
 
-        self.lin = torch.nn.Linear(in_channels, out_channels)
-        self.add_self_loops = add_self_loops
+        if self.conv_name == 'gcn_conv':
+            self.conv = GCNConv(in_channels, out_channels)
+            if(self.task == 'inductive'): # if transductive, we dont use linear
+                self.lin  = nn.Linear(in_channels, out_channels)
+
+        elif self.conv_name == 'gat_conv':
+            if iscat:
+                in_channels = n_heads * in_channels
+            else:
+                in_channels = in_channels
+            self.conv = GATConv(in_channels, out_channels, n_heads, iscat, dropout)
+            if self.task == 'inductive': # if transductive, we dont use linear
+                if iscat:
+                    self.lin = nn.Linear(in_channels, out_channels * n_heads)
+                else:
+                    self.lin = nn.Linear(in_channels, out_channels)
 
     def forward(self, x, edge_index):
-
-        if self.add_self_loops:
-            edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
-
-        x = self.lin(x)
-
-        row, col = edge_index
-        deg = degree(col, x.size(0), dtype=x.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-
-        return self.propagate(edge_index, x=x, norm=norm)
-
-    def message(self, x_j, norm):
-        return norm.view(-1, 1) * x_j
+        if self.task == 'inductive':
+            return self.conv(x, edge_index) + self.lin(x)
+        elif self.task == 'transductive':
+            return self.conv(x, edge_index)
 
 
 class JumpingKnowledge(torch.nn.Module):
-    def __init__(self, mode, att_mode, channels=None, num_layers=None):
+    def __init__(self, mode, att_mode=None, channels=None, num_layers=None):
         super(JumpingKnowledge, self).__init__()
         self.mode = mode.lower()
-        self.att_mode = att_mode.lower()
+        self.att_mode = att_mode
         assert self.mode in ['cat', 'max', 'lstm']
 
         if mode == 'lstm':
@@ -87,7 +92,36 @@ class JumpingKnowledge(torch.nn.Module):
                 alpha = self.att(alpha).squeeze(-1)
             
             alpha = torch.softmax(alpha, dim=-1)
-            return alpha, (x * alpha.unsqueeze(-1)).sum(dim=1) # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
+            return (x * alpha.unsqueeze(-1)).sum(dim=1) # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.mode)
+
+
+class GCN(nn.Module):
+    def __init__(self, task, n_feat, n_hid, n_class, dropout):
+        super(GCN, self).__init__()
+        self.task = task
+        self.dropout = dropout
+        
+        n_layers = [n_feat] + list(n_hid) + [n_class]
+        self.convs = torch.nn.ModuleList()
+        self.lins  = torch.nn.ModuleList()
+        for idx in range(len(n_layers)-1):
+            self.convs.append(GCNConv(n_layers[idx], n_layers[idx+1]))
+            self.lins.append(torch.nn.Linear(n_layers[idx], n_layers[idx+1]))
+
+    def forward(self, x, edge_index):
+        for conv, lin in zip(self.convs[0:-1], self.lins[0:-1]):
+            if self.task == 'inductive':
+                x = conv(x, edge_index) + lin(x)
+            elif self.task == 'transductive':
+                x = conv(x, edge_index)
+            x = F.relu(x)
+            x = F.dropout(x, self.dropout, training=self.training)
+
+        # iff the last convolutional layer, we don't use relu and dropout
+        if(self.task == 'inductive'):
+            return self.convs[-1](x, edge_index) + self.lins[-1](x)
+        elif self.task == 'transductive':
+            return self.convs[-1](x, edge_index)
