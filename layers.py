@@ -13,34 +13,34 @@ from torch_geometric.utils import add_self_loops, degree
 
 
 class GeneralConv(nn.Module):
-    def __init__(self, task, conv_name, in_channels, out_channels, n_heads=1, iscat=False, dropout=0.):
+    def __init__(self, task, conv_name, in_channels, out_channels,
+                 n_heads=[1, 1], iscat=[False, False], dropout=0.):
         super(GeneralConv, self).__init__()
-
-        self.conv_name = conv_name
         self.task = task
 
-        if self.conv_name == 'gcn_conv':
+        if conv_name == 'gcn_conv':
             self.conv = GCNConv(in_channels, out_channels)
-            if(self.task == 'inductive'): # if transductive, we dont use linear
-                self.lin  = nn.Linear(in_channels, out_channels)
+            if(self.task == 'inductive'):  # if transductive, we dont use linear
+                self.lin = nn.Linear(in_channels, out_channels)
 
-        elif self.conv_name == 'gat_conv':
-            if iscat:
-                in_channels = n_heads * in_channels
-            else:
-                in_channels = in_channels
-            self.conv = GATConv(in_channels, out_channels, n_heads, iscat, dropout)
-            if self.task == 'inductive': # if transductive, we dont use linear
-                if iscat:
-                    self.lin = nn.Linear(in_channels, out_channels * n_heads)
-                else:
-                    self.lin = nn.Linear(in_channels, out_channels)
+        elif conv_name == 'gat_conv':
+            if iscat[0]:
+                in_channels = in_channels * n_heads[0]
+            self.conv = GATConv(in_channels=in_channels,
+                                out_channels=out_channels,
+                                heads=n_heads[1],
+                                concat=iscat[1],
+                                dropout=dropout)
+            if self.task == 'inductive':  # if transductive, we dont use linear
+                if iscat[1]:
+                    out_channels = out_channels * n_heads[1]
+                self.lin = nn.Linear(in_channels, out_channels)
 
     def forward(self, x, edge_index):
-        if self.task == 'inductive':
-            return self.conv(x, edge_index) + self.lin(x)
-        elif self.task == 'transductive':
+        if self.task == 'transductive':
             return self.conv(x, edge_index)
+        elif self.task == 'inductive':
+            return self.conv(x, edge_index) + self.lin(x)
 
 
 class JumpingKnowledge(torch.nn.Module):
@@ -57,7 +57,7 @@ class JumpingKnowledge(torch.nn.Module):
                 channels, channels,
                 bidirectional=True,
                 batch_first=True)
-            self.att = Linear(2* channels, 1)
+            self.att = Linear(2 * channels, 1)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -75,53 +75,26 @@ class JumpingKnowledge(torch.nn.Module):
             return torch.stack(xs, dim=-1).max(dim=-1)[0]
         elif self.mode == 'lstm':
             x = torch.stack(xs, dim=1)  # x (n, l, d)
-            alpha, _ = self.lstm(x) # alpha (n, l, dl), _[0] (n, dl/2) for h and c
-            
-            if(self.att_mode in ['sd', 'mx']): # SD or MX
+            # alpha (n, l, dl), _[0] (n, dl/2) for h and c
+            alpha, _ = self.lstm(x)
+
+            if(self.att_mode in ['sd', 'mx']):  # SD or MX
                 dim = alpha.size()[-1]
-                alpha_f, alpha_b = alpha[:,:,:dim//2], alpha[:,:,dim//2:]
+                alpha_f, alpha_b = alpha[:, :, :dim//2], alpha[:, :, dim//2:]
 
                 sd = (alpha_f * alpha_b).sum(dim=-1)
-                if(self.att_mode == 'sd'): # SD
+                if(self.att_mode == 'sd'):  # SD
                     alpha = sd / math.sqrt(dim//2)
-                else: # MX
+                else:  # MX
                     alpha = self.att(alpha).squeeze(-1)
                     alpha = alpha * torch.sigmoid(sd)
-            
-            else: # GO
+
+            else:  # GO
                 alpha = self.att(alpha).squeeze(-1)
-            
+
             alpha = torch.softmax(alpha, dim=-1)
-            return (x * alpha.unsqueeze(-1)).sum(dim=1) # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
+            # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
+            return (x * alpha.unsqueeze(-1)).sum(dim=1)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.mode)
-
-
-class GCN(nn.Module):
-    def __init__(self, task, n_feat, n_hid, n_class, dropout):
-        super(GCN, self).__init__()
-        self.task = task
-        self.dropout = dropout
-        
-        n_layers = [n_feat] + list(n_hid) + [n_class]
-        self.convs = torch.nn.ModuleList()
-        self.lins  = torch.nn.ModuleList()
-        for idx in range(len(n_layers)-1):
-            self.convs.append(GCNConv(n_layers[idx], n_layers[idx+1]))
-            self.lins.append(torch.nn.Linear(n_layers[idx], n_layers[idx+1]))
-
-    def forward(self, x, edge_index):
-        for conv, lin in zip(self.convs[0:-1], self.lins[0:-1]):
-            if self.task == 'inductive':
-                x = conv(x, edge_index) + lin(x)
-            elif self.task == 'transductive':
-                x = conv(x, edge_index)
-            x = F.relu(x)
-            x = F.dropout(x, self.dropout, training=self.training)
-
-        # iff the last convolutional layer, we don't use relu and dropout
-        if(self.task == 'inductive'):
-            return self.convs[-1](x, edge_index) + self.lins[-1](x)
-        elif self.task == 'transductive':
-            return self.convs[-1](x, edge_index)
