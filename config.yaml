@@ -128,10 +128,19 @@ GATNet_toy: &GATNet_toy
 
 JKNet: &JKNet
   <<: *GNN
+<<<<<<< HEAD
   model: JKNet_GCNConv
   learning_rate: 0.005 # override >> GNN
   n_layer: 6
   n_hid: 16
+=======
+  model: JKNet_GATConv
+  learning_rate: 0.005 # override >> GNN
+  n_layer: 3
+  n_hid: 8
+  n_head: 8
+  iscat: True
+>>>>>>> 619b991820047e84353da40e50c8efdc3241f509
 
 JKNet_Cora: &JKNet_Cora
   <<: [*JKNet, *Cora]
@@ -155,7 +164,10 @@ JKNet_PPI: &JKNet_PPI
   weight_decay: 0.     # override >> JKNet
   n_hid: 256
   n_head: 4
+<<<<<<< HEAD
   iscat: True
+=======
+>>>>>>> 619b991820047e84353da40e50c8efdc3241f509
   jk_mode: lstm
   att_mode: go
 
