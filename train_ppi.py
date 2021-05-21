@@ -5,6 +5,7 @@ import statistics
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score
+from tqdm import tqdm
 
 import torchvision.transforms as transforms
 import torch
@@ -57,7 +58,7 @@ def run(data_loader, config, device):
                                  lr           = config['learning_rate'], 
                                  weight_decay = config['weight_decay'])
 
-    for epoch in range(1, config['epochs']):
+    for epoch in tqdm(range(1, config['epochs'])):
         train(epoch, config, train_loader, model, optimizer, device)
 
     return test(config, test_loader, model, device)

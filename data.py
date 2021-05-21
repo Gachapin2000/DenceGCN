@@ -12,7 +12,7 @@ from torch_geometric.utils.convert import to_networkx
 
 
 class FiveUniqueNodes(InMemoryDataset):
-    def __init__(self, root, idx_train=[4,13,16], x_std=0.1, transform=None, pre_transform=None):
+    def __init__(self, root, split="public", x_std=0.1, transform=None, pre_transform=None):
         super(FiveUniqueNodes, self).__init__(root, transform, pre_transform)
 
         self.n_nodes = 19
@@ -27,8 +27,11 @@ class FiveUniqueNodes(InMemoryDataset):
         edge_index = torch.stack([row, col], dim=0)
 
         train_mask = torch.zeros(self.n_nodes, dtype=torch.bool)
-        for i in idx_train:
-            train_mask[i] = True
+        if(split=='public'):
+            for i in [4,13,16]:
+                train_mask[i] = True
+        elif(split=='full_100per'):
+            train_mask.fill_(True)
 
         data = Data(x=self.x, edge_index=edge_index, y=self.y, train_mask=train_mask)
         self.data, self.slices = self.collate([data])
@@ -78,7 +81,7 @@ class Planetoid(InMemoryDataset):
         self.data, self.slices = torch.load(self.processed_paths[0])
 
         self.split = split
-        assert self.split in ['public', 'full', 'full_60per', 'random']
+        assert self.split in ['public', 'full', 'full_60per', 'full_100per', 'random']
 
         if split == 'full':
             data = self.get(0)
@@ -102,6 +105,13 @@ class Planetoid(InMemoryDataset):
                 data.val_mask[i] = True
             for i in idx_test:
                 data.test_mask[i] = True
+            self.data, self.slices = self.collate([data])
+
+        elif split == 'full_100per':
+            data = self.get(0)
+            data.train_mask.fill_(True)
+            data.val_mask.fill_(True)
+            data.test_mask.fill_(True)
             self.data, self.slices = self.collate([data])
 
         elif split == 'random':

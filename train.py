@@ -22,7 +22,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    h = model(data.x, data.edge_index)
+    h, _ = model(data.x, data.edge_index)
     prob_labels = F.log_softmax(h, dim=1)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     acc_train, _  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
@@ -32,7 +32,7 @@ def train(epoch, config, data, model, optimizer):
 
     # validation
     model.eval()
-    h = model(data.x, data.edge_index)
+    h, _ = model(data.x, data.edge_index)
     prob_labels_val = F.log_softmax(h, dim=1)
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
     acc_val, _ = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
@@ -48,7 +48,7 @@ def train(epoch, config, data, model, optimizer):
 
 def test(config, data, model):
     model.eval()
-    h = model(data.x, data.edge_index)
+    h, alpha = model(data.x, data.edge_index)
     prob_labels_test = F.log_softmax(h, dim=1)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
@@ -64,7 +64,7 @@ def test(config, data, model):
           "accuracy(top)= {:.4f}".format(acc_top.data.item()),
           "accuracy(bottom)= {:.4f}".format(acc_bot.data.item()))'''
 
-    return acc, acc_top, acc_bot
+    return acc, acc_top, acc_bot, alpha
 
 
 def run(data, config, device):
@@ -109,10 +109,10 @@ def main():
     test_acc = np.zeros(config['n_tri'])
     test_acc_top = np.zeros(config['n_tri'])
     test_acc_bot = np.zeros(config['n_tri'])
-    # alphas = []
+    alphas = []
     for tri in range(config['n_tri']):
-        test_acc[tri], test_acc_top[tri], test_acc_bot[tri] = run(data, config, device)
-        # alphas.append(alpha)
+        test_acc[tri], test_acc_top[tri], test_acc_bot[tri], alpha = run(data, config, device)
+        alphas.append(alpha)
     print('config: {}\n'.format(config))
     for acc_criteria in ['test_acc', 'test_acc_top', 'test_acc_bot']:
         acc = eval(acc_criteria)
@@ -120,12 +120,12 @@ def main():
         print('\tave={:.3f} max={:.3f} min={:.3f}' \
               .format(np.mean(acc), np.max(acc), np.min(acc)))
     
-    '''best_epoch = np.argmax(test_acc)
+    best_epoch = np.argmax(test_acc)
     alpha = alphas[best_epoch]
     alpha_avg = alpha[data.homophily_rank['avg']]
     alpha_homo = alpha[data.homophily_rank['homo']]
     alpha_hetero = alpha[data.homophily_rank['hetero']]
-    np.save('./result/{}_JKlstm_{}_layerwise_att.npy'.format(config['dataset'], config['att_mode']), alpha.to('cpu').detach().numpy().copy())
+    '''np.save('./result/{}_JKlstm_{}_layerwise_att_super.npy'.format(config['dataset'], config['att_mode']), alpha.to('cpu').detach().numpy().copy())
     np.save('./result/{}_JKlstm_{}_layerwise_att_avg.npy'.format(config['dataset'], config['att_mode']), alpha_avg.to('cpu').detach().numpy().copy())
     np.save('./result/{}_JKlstm_{}_layerwise_att_homo.npy'.format(config['dataset'], config['att_mode']), alpha_homo.to('cpu').detach().numpy().copy())
     np.save('./result/{}_JKlstm_{}_layerwise_att_hetero.npy'.format(config['dataset'], config['att_mode']), alpha_hetero.to('cpu').detach().numpy().copy())
