@@ -62,11 +62,7 @@ class JKNet_GCNConv(nn.Module):
         self.in_conv = GeneralConv(self.task, 'gcn_conv', n_feat, n_hid)
         self.convs = nn.ModuleList()
         for _ in range(n_layer-1):
-<<<<<<< HEAD
             self.convs.append(GeneralConv(self.task, 'gcn_conv', n_hid, n_hid))
-=======
-            self.convs.append(GCNConv(self.task, 'gcn_conv', n_hid, n_hid))
->>>>>>> 619b991820047e84353da40e50c8efdc3241f509
 
         if(mode == 'lstm'):
             self.jk = JumpingKnowledge(
@@ -89,13 +85,8 @@ class JKNet_GCNConv(nn.Module):
             x = F.dropout(F.relu(x), self.dropout, training=self.training)
             xs.append(x)
 
-<<<<<<< HEAD
         h, alpha = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
         return self.out_lin(h), alpha
-=======
-        h = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
-        return self.out_lin(h)
->>>>>>> 619b991820047e84353da40e50c8efdc3241f509
 
 
 class JKNet_GATConv(nn.Module):
@@ -157,26 +148,17 @@ class GATNet(nn.Module):
                                iscat=[iscat[idx], iscat[idx+1]],
                                dropout=self.dropout)
             self.convs.append(conv)
-<<<<<<< HEAD
         print(self.convs)
-=======
->>>>>>> 619b991820047e84353da40e50c8efdc3241f509
 
     def forward(self, x, edge_index):
         # atts, es = [], []
         for i, conv in enumerate(self.convs):
             x = F.dropout(x, self.dropout, training=self.training)
             x = conv(x, edge_index)
-<<<<<<< HEAD
             if(i < len(self.convs)-1):  # skips elu activate iff last layer
                 x = F.elu(x)
-=======
-            '''if(i < len(self.convs)-1):  # skips elu activate iff last layer
-                x = F.elu(x)'''
->>>>>>> 619b991820047e84353da40e50c8efdc3241f509
             # atts.append(alpha)
             # es.append(edge_index_)
-        x = F.elu(x)
         return x
 
 
@@ -249,8 +231,4 @@ def return_net(args):
                        n_hid=args['n_hid'],
                        n_layer=args['n_layer'],
                        n_class=args['n_class'],
-<<<<<<< HEAD
                        dropout=args['dropout'])
-=======
-                       dropout=args['dropout'])
->>>>>>> 619b991820047e84353da40e50c8efdc3241f509

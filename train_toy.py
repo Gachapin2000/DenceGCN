@@ -12,7 +12,7 @@ import torch_geometric.transforms as T
 
 from data import FiveUniqueNodes
 from models import return_net
-from utils import accuracy, HomophilyRank, DictProcessor
+from utils import accuracy, HomophilyRank2
 from debug import visualize_gat
 
 
@@ -62,9 +62,10 @@ def run(config):
     torch.backends.cudnn.benchmark = False'''
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = FiveUniqueNodes(root='../data/toy', 
+    dataset = FiveUniqueNodes(root='./data/toy_homophilyrank2()',
                               split=config['split'], 
-                              x_std=0.25)
+                              x_std=0.25,
+                              pre_transform = HomophilyRank2())
     data = dataset[0].to(device)
 
     config['n_feat']  = data.x.size()[1]
