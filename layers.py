@@ -37,6 +37,9 @@ class GeneralConv(nn.Module):
                     out_channels = out_channels * n_heads[1]
                 self.lin = nn.Linear(in_channels, out_channels)
 
+        elif conv_name == 'uniq_conv':
+            pass
+
     def forward(self, x, edge_index):
         if self.task == 'transductive':
             return self.conv(x, edge_index)
@@ -100,3 +103,5 @@ class JumpingKnowledge(torch.nn.Module):
             alpha = torch.softmax(alpha, dim=-1)
             # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
             return (x * alpha.unsqueeze(-1)).sum(dim=1), alpha
+
+

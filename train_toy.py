@@ -62,10 +62,10 @@ def run(config):
     torch.backends.cudnn.benchmark = False'''
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = FiveUniqueNodes(root='./data/toy_homophilyrank2()',
+    dataset = FiveUniqueNodes(root='./data/toy_homophilyrank2(border=0.75)',
                               split=config['split'], 
                               x_std=0.25,
-                              pre_transform = HomophilyRank2())
+                              pre_transform = HomophilyRank2(border=0.75))
     data = dataset[0].to(device)
 
     config['n_feat']  = data.x.size()[1]

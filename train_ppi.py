@@ -16,7 +16,7 @@ from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 
 from models import return_net
-from utils import accuracy, HomophilyRank, DictProcessor
+from utils import accuracy, HomophilyRank, HomophilyRank2
 
 
 def train(epoch, config, loader, model, optimizer, device):
@@ -58,8 +58,10 @@ def run(data_loader, config, device):
                                  lr           = config['learning_rate'], 
                                  weight_decay = config['weight_decay'])
 
-    for epoch in tqdm(range(1, config['epochs'])):
+    for epoch in range(1, config['epochs']):
         train(epoch, config, train_loader, model, optimizer, device)
+        acc = test(config, test_loader, model, device)
+        print('{} epoch : {}'.format(epoch, acc))
 
     return test(config, test_loader, model, device)
 
@@ -71,6 +73,7 @@ def load(cfg : DictConfig) -> None:
 
 def main():
     global config
+    print('config: {}\n'.format(config))
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
@@ -85,7 +88,6 @@ def main():
     test_acc = np.zeros(config['n_tri'])
     for tri in range(config['n_tri']):
         test_acc[tri] = run(data_loader, config, device)
-    print('config: {}\n'.format(config))
     print('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
     print('\tave={:.3f} max={:.3f} min={:.3f}' \
           .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
