@@ -52,8 +52,8 @@ def test(config, data, model):
     prob_labels_test = F.log_softmax(h, dim=1)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
-    bot = data.homophily_rank[:500]
-    top = data.homophily_rank[-500:]
+    bot = data.homophily_rank['avg'][:500]
+    top = data.homophily_rank['avg'][-500:]
     acc, _ = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
     acc_top, _ = accuracy(prob_labels_test[top], data.y[top])
     acc_bot, _ = accuracy(prob_labels_test[bot], data.y[bot])
@@ -64,7 +64,7 @@ def test(config, data, model):
           "accuracy(top)= {:.4f}".format(acc_top.data.item()),
           "accuracy(bottom)= {:.4f}".format(acc_bot.data.item()))'''
 
-    return acc, acc_top, acc_bot, alpha
+    return acc, acc_top, acc_bot
 
 
 def run(data, config, device):
@@ -105,15 +105,14 @@ def main():
                         transform     = eval(config['transform']),
                         pre_transform = eval(config['pre_transform']))
     data = dataset[0].to(device)
-    print(data)
 
     test_acc = np.zeros(config['n_tri'])
     test_acc_top = np.zeros(config['n_tri'])
     test_acc_bot = np.zeros(config['n_tri'])
     alphas = []
     for tri in range(config['n_tri']):
-        test_acc[tri], test_acc_top[tri], test_acc_bot[tri], alpha = run(data, config, device)
-        alphas.append(alpha)
+        test_acc[tri], test_acc_top[tri], test_acc_bot[tri] = run(data, config, device)
+        # alphas.append(alpha)
     print('config: {}\n'.format(config))
     for acc_criteria in ['test_acc', 'test_acc_top', 'test_acc_bot']:
         acc = eval(acc_criteria)
@@ -121,11 +120,11 @@ def main():
         print('\tave={:.3f} max={:.3f} min={:.3f}' \
               .format(np.mean(acc), np.max(acc), np.min(acc)))
     
-    best_epoch = np.argmax(test_acc)
+    '''best_epoch = np.argmax(test_acc)
     alpha = alphas[best_epoch]
     alpha_avg = alpha[data.homophily_rank]
     # np.save('./result/{}_JKlstm_{}_layerwise_att.npy'.format(config['dataset'], config['att_mode']), alpha.to('cpu').detach().numpy().copy())
-    np.save('./result/{}_JKlstm_{}_layerwise_att_sortby_{}_full60per.npy'.format(config['dataset'], config['att_mode'], config['pre_transform']), alpha_avg.to('cpu').detach().numpy().copy())
+    np.save('./result/{}_JKlstm_{}_layerwise_att_sortby_{}_full60per.npy'.format(config['dataset'], config['att_mode'], config['pre_transform']), alpha_avg.to('cpu').detach().numpy().copy())'''
 
 if __name__ == "__main__":
     load()

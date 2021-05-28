@@ -23,10 +23,10 @@ class JKNet_GCNConv(nn.Module):
         super(JKNet_GCNConv, self).__init__()
         self.dropout = dropout
 
-        self.in_conv = GeneralConv(self.task, 'gcn_conv', n_feat, n_hid)
+        self.in_conv = GeneralConv(task, 'gcn_conv', n_feat, n_hid)
         self.convs = nn.ModuleList()
         for _ in range(1, n_layer):
-            self.convs.append(GeneralConv(self.task, 'gcn_conv', n_hid, n_hid))
+            self.convs.append(GeneralConv(task, 'gcn_conv', n_hid, n_hid))
 
         if(mode == 'lstm'):
             self.jk = JumpingKnowledge(
@@ -49,8 +49,8 @@ class JKNet_GCNConv(nn.Module):
             x = F.dropout(F.relu(x), self.dropout, training=self.training)
             xs.append(x)
 
-        h,  = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
-        return self.out_lin(h), 
+        h, _ = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
+        return self.out_lin(h), _
 
 
 class JKNet_GATConv(nn.Module):
@@ -101,7 +101,7 @@ class JKNet_GATConv(nn.Module):
             xs.append(x)
 
         h, _ = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
-        return self.out_lin(h)
+        return self.out_lin(h), _
 
 
 class GATNet(nn.Module):

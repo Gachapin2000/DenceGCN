@@ -60,8 +60,8 @@ def run(data_loader, config, device):
 
     for epoch in range(1, config['epochs']):
         train(epoch, config, train_loader, model, optimizer, device)
-        acc = test(config, test_loader, model, device)
-        print('{} epoch : {}'.format(epoch, acc))
+        '''acc = test(config, test_loader, model, device)
+        print('{} epoch : {}'.format(epoch, acc))'''
 
     return test(config, test_loader, model, device)
 
