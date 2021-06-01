@@ -70,7 +70,7 @@ class FiveUniqueNodes(InMemoryDataset):
 class Planetoid(InMemoryDataset):
     url = 'https://github.com/kimiyoung/planetoid/raw/master/data'
 
-    def __init__(self, root, name, split="public", num_train_per_class=20,
+    def __init__(self, root, name, seed, split="public", num_train_per_class=20,
                  num_val=500, num_test=1000, transform=None,
                  pre_transform=None):
         self.name = name
@@ -89,6 +89,8 @@ class Planetoid(InMemoryDataset):
 
         elif split == 'full_60per':
             data = self.get(0)
+
+            np.random.seed(seed)
             idx_test = np.random.choice(2708, int(2708*0.2), replace=False)
             without_test=np.array([i for i in range(2708) if i not in idx_test])
             idx_train = without_test[np.random.choice(np.arange(len(without_test)),int(2708*0.6), replace=False)]

@@ -67,7 +67,17 @@ def test(config, data, model):
     return acc, acc_top, acc_bot
 
 
-def run(data, config, device):
+def run(tri, config):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    dataset = Planetoid(root          = root.lower(),
+                        name          = config['dataset'],
+                        seed = tri, 
+                        split         = config['split'], 
+                        transform     = eval(config['transform']),
+                        pre_transform = eval(config['pre_transform']))
+    data = dataset[0].to(device)
+
     model = return_net(config).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
                                  lr           = config['learning_rate'], 
@@ -97,21 +107,12 @@ def load(cfg : DictConfig) -> None:
 def main():
     global config
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
-    dataset = Planetoid(root          = root.lower(),
-                        name          = config['dataset'], 
-                        split         = config['split'], 
-                        transform     = eval(config['transform']),
-                        pre_transform = eval(config['pre_transform']))
-    data = dataset[0].to(device)
-
     test_acc = np.zeros(config['n_tri'])
     test_acc_top = np.zeros(config['n_tri'])
     test_acc_bot = np.zeros(config['n_tri'])
     alphas = []
     for tri in range(config['n_tri']):
-        test_acc[tri], test_acc_top[tri], test_acc_bot[tri] = run(data, config, device)
+        test_acc[tri], test_acc_top[tri], test_acc_bot[tri] = run(tri, config)
         # alphas.append(alpha)
     print('config: {}\n'.format(config))
     for acc_criteria in ['test_acc', 'test_acc_top', 'test_acc_bot']:
