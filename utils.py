@@ -23,7 +23,7 @@ class HomophilyRank:
     def calc_length_of_all_pairs(self, G, n_nodes):
         paths = torch.zeros(n_nodes, n_nodes)
 
-        longest_path_length = 8
+        longest_path_length = 5
         for i in tqdm(range(n_nodes)):
             for j in range(n_nodes):
                 try:

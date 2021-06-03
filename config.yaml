@@ -1,10 +1,10 @@
-key: JKNet_Cora
+key: JKNet_Reddit
 
 
 # -------datasets-------
 Planetoid: &Planetoid
   task: transductive
-  pre_transform: HomophilyRank2(border=0.3)
+  pre_transform: HomophilyRank()
   split: public
   n_tri: 10
 
@@ -28,6 +28,19 @@ PubMed: &PubMed
   transform: None
   n_feat: 500
   n_class: 3
+
+Reddit: &Reddit
+  task: transductive
+  dataset: Reddit
+  pre_transform: None
+  transform: None
+  n_feat: 602
+  n_class: 41
+  n_tri: 10
+  epochs: 20 # override >> GNN
+  learning_rate: 0.01
+  weight_decay: 0.
+  dropout: 0.5
 
 FiveUniqNodes: &FiveUniqNodes
   task: transductive  
@@ -149,6 +162,15 @@ JKNet_PubMed: &JKNet_PubMed
   jk_mode: max
   att_mode: go # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
   
+JKNet_Reddit: &JKNet_Reddit
+  <<: [*Reddit, *JKNet]
+  model: JKNet_SAGEConv # override >> JKNet
+  n_layer: 2
+  n_hid: 256
+  jk_mode: lstm
+  att_mode: go
+  isdense: False
+
 JKNet_PPI: &JKNet_PPI
   <<: [*PPI, *JKNet]
   model: JKNet_GATConv # override >> JKNet

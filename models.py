@@ -10,10 +10,70 @@ from torchviz import make_dot
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj
 
-from torch_geometric.nn import GATConv, GCNConv
+from torch_geometric.nn import GATConv, GCNConv, SAGEConv
 from layers import JumpingKnowledge, GeneralConv
 
-import math
+
+class JKNet_SAGEConv(nn.Module):
+    def __init__(self, task, n_feat, n_hid, n_layer, n_class,
+                 dropout, mode, att_mode):
+        super(JKNet_SAGEConv, self).__init__()
+        self.dropout = dropout
+        self.n_layer = n_layer
+
+        self.convs = nn.ModuleList()
+        self.convs.append(SAGEConv(n_feat, n_hid))
+        for _ in range(1, n_layer):
+            self.convs.append(SAGEConv(n_hid, n_hid))
+
+        if(mode == 'lstm'):
+            self.jk = JumpingKnowledge(
+                'lstm', att_mode, channels=n_hid, num_layers=n_layer)
+        else:  # if mode == 'cat' or 'max'
+            self.jk = JumpingKnowledge(mode)
+
+        if mode == 'cat':
+            self.out_lin = nn.Linear(n_hid*n_layer, n_class)
+        else:  # if mode == 'max' or 'lstm'
+            self.out_lin = nn.Linear(n_hid, n_class)
+
+    def forward(self, x, adjs, batch_size):
+        xs = []
+        for i, (edge_index, _, size) in enumerate(adjs):
+            # size is [106991, 21790], may be (B0's size, B1's size)
+            x_target = x[:size[1]]  # Target nodes are always placed first.
+            x = self.convs[i]((x, x_target), edge_index)
+            # x is (107741, 602), x_target is (22011, 602) -> x is (22011, 256) (i=0)
+            # x is (22011, 256), x_target is (1024, 256) -> x is (1024, 41) (i=1)
+            if i != self.n_layer - 1:
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+            xs.append(x)
+        xs = [x[:batch_size] for x in xs]
+
+        h, _ = self.jk(xs) # xs = [h1,h2,h3, ...,hL], h is (n, d)
+        return h.log_softmax(dim=-1), _
+
+    def inference(self, x_all, all_subgraph_loader):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        x_alls = []
+        for i in range(self.n_layer): # l1, l2
+            xs = []
+            for batch_size, n_id, adj in all_subgraph_loader:
+                edge_index, _, size = adj.to(device)
+                x = x_all[n_id].to(device)
+                x_target = x[:size[1]]
+                x = self.convs[i]((x, x_target), edge_index)
+                if i != self.n_layer - 1:
+                    x = F.relu(x)
+                xs.append(x)
+
+            x_all = torch.cat(xs, dim=0)
+            x_alls.append(x_all)
+
+        h, alpha = self.jk(x_alls)  # xs = [h1,h2,h3,...,hL], h is (n, d)
+        return h, alpha
 
 
 class JKNet_GCNConv(nn.Module):
@@ -180,6 +240,16 @@ def return_net(args):
                              dropout=args['dropout'],
                              mode=args['jk_mode'],
                              att_mode=args['att_mode'])
+
+    elif args['model'] == 'JKNet_SAGEConv':
+        return JKNet_SAGEConv(task=args['task'],
+                              n_feat=args['n_feat'],
+                              n_hid=args['n_hid'],
+                              n_layer=args['n_layer'],
+                              n_class=args['n_class'],
+                              dropout=args['dropout'],
+                              mode=args['jk_mode'],
+                              att_mode=args['att_mode'])
 
     elif args['model'] == 'JKNet_GATConv':
         return JKNet_GATConv(task=args['task'],

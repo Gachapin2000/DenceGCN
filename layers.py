@@ -9,7 +9,7 @@ from tqdm import trange, tqdm
 from torch.nn import Module, Parameter, Linear, LSTM
 from torch.nn.parameter import Parameter
 
-from torch_geometric.nn import MessagePassing, GATConv, GCNConv
+from torch_geometric.nn import MessagePassing, GATConv, GCNConv, SAGEConv
 from torch_geometric.utils import add_self_loops, degree
 
 
@@ -36,9 +36,6 @@ class GeneralConv(nn.Module):
                 if iscat[1]:
                     out_channels = out_channels * n_heads[1]
                 self.lin = nn.Linear(in_channels, out_channels)
-
-        elif conv_name == 'uniq_conv':
-            pass
 
     def forward(self, x, edge_index):
         if self.task == 'transductive':
