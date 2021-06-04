@@ -79,7 +79,7 @@ class Planetoid(InMemoryDataset):
         self.data, self.slices = torch.load(self.processed_paths[0])
 
         self.split = split
-        assert self.split in ['public', 'full', 'full_60per', 'full_100per', 'random']
+        assert self.split in ['public', 'full', 'full_random60per', 'full_100per', 'random']
 
         if split == 'full':
             data = self.get(0)
@@ -87,7 +87,7 @@ class Planetoid(InMemoryDataset):
             data.train_mask[data.val_mask | data.test_mask] = False
             self.data, self.slices = self.collate([data])
 
-        elif split == 'full_60per':
+        elif split == 'full_random60per':
             data = self.get(0)
 
             np.random.seed(seed)

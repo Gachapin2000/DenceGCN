@@ -52,7 +52,7 @@ class JKNet_SAGEConv(nn.Module):
         xs = [x[:batch_size] for x in xs]
 
         h, _ = self.jk(xs) # xs = [h1,h2,h3, ...,hL], h is (n, d)
-        return h.log_softmax(dim=-1), _
+        return self.out_lin(h), _
 
     def inference(self, x_all, all_subgraph_loader):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

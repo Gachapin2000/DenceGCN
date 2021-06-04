@@ -72,7 +72,7 @@ def run(config):
     config['n_class'] = torch.max(data.y).data.item() + 1
     model = return_net(config).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
-                                 lr           = config['learning_rate'], 
+                                 lr           = config['learning_rate'],
                                  weight_decay = config['weight_decay'])
 
     for epoch in range(1, config['epochs']):

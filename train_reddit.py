@@ -40,30 +40,39 @@ def train(epoch, config, data, train_loader, model, optimizer):
 
 
 @torch.no_grad()
-def test(config, data, all_subgraph_loader, model, optimizer):
+def test(config, data, test_loader, model, optimizer):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.eval()
 
-    h, alpha = model.inference(data.x, all_subgraph_loader)
-    y_true = data.y.unsqueeze(-1)
-    y_pred = h.argmax(dim=-1, keepdim=True)
+    total_correct = 0
+    for batch_size, n_id, adjs in test_loader:
+        # batch_size is 1024, 
+        # `adjs` holds a list of `(edge_index, e_id, size)` tuples.
+        adjs = [adj.to(device) for adj in adjs] # 2 adj, because of 2 layer-conv
 
-    test_acc = int(y_pred[data.test_mask].eq(y_true[data.test_mask]).sum()) / int(data.test_mask.sum())
+        # n_id is (107741)(=[v_53030, v_182890, ...]) , it is Batch_0
+        h, alpha = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
+        prob_labels = F.log_softmax(h, dim=1)
 
-    return test_acc, alpha
+        total_correct += int(prob_labels.argmax(dim=-1).eq(data.y[n_id[:batch_size]]).sum())
+
+    approx_acc = total_correct / int(data.test_mask.sum())
+    
+    return approx_acc, alpha
 
 def run(tri, config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
     dataset = Reddit(root=root.lower())
     data = dataset[0].to(device)
-
+    sizes_l = [500, 200, 100, 25, 25, 10]
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
-                                   sizes=[100, 50, 25, 10], batch_size=1024, shuffle=True,
-                                   num_workers=12) # sizes is sampling size when aggregates
-    all_subgraph_loader = NeighborSampler(data.edge_index, node_idx=None,
-                                          sizes=[-1], batch_size=1024, shuffle=False,
-                                          num_workers=12) # all nodes is considered
-
+                                   sizes=sizes_l[-config['n_layer']:], batch_size=1024, shuffle=True,
+                                   num_workers=6) # sizes is sampling size when aggregates
+    test_loader = NeighborSampler(data.edge_index, node_idx=data.test_mask,
+                                  sizes=sizes_l[-config['n_layer']:], batch_size=1024, shuffle=False,
+                                  num_workers=6) # all nodes is considered
+    
     model = return_net(config).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
                                  lr           = config['learning_rate'], 
@@ -73,7 +82,7 @@ def run(tri, config):
     for epoch in range(1, config['epochs']):
         train(epoch, config, data, train_loader, model, optimizer)
     
-    return test(config, data, all_subgraph_loader, model, optimizer)
+    return test(config, data, test_loader, model, optimizer)
 
 
 @hydra.main(config_name="./config.yaml")
@@ -84,6 +93,7 @@ def load(cfg : DictConfig) -> None:
 def main():
     global config
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     test_acces = np.zeros(config['n_tri'])
     alphas = []
     for tri in range(config['n_tri']):
