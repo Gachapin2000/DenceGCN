@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import statistics
 import hydra
+from tqdm import tqdm
 from omegaconf import DictConfig, OmegaConf
 
 import torchvision.transforms as transforms
@@ -52,8 +53,8 @@ def test(config, data, model):
     prob_labels_test = F.log_softmax(h, dim=1)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
-    top = data.homophily_rank[:500]
-    bot = data.homophily_rank[-500:]
+    top = data.homophily_rank['avg'][:500]
+    bot = data.homophily_rank['avg'][-500:]
     acc, _ = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
     acc_top, _ = accuracy(prob_labels_test[top], data.y[top])
     acc_bot, _ = accuracy(prob_labels_test[bot], data.y[bot])
@@ -119,7 +120,7 @@ def main():
     test_acc_top = np.zeros(config['n_tri'])
     test_acc_bot = np.zeros(config['n_tri'])
     alphas = []
-    for tri in range(config['n_tri']):
+    for tri in tqdm(range(config['n_tri'])):
         test_acc[tri], test_acc_top[tri], test_acc_bot[tri], alpha = run(data, config, seed=tri)
         alphas.append(alpha)
     print('config: {}\n'.format(config))
@@ -129,10 +130,10 @@ def main():
         print('\tave={:.3f} max={:.3f} min={:.3f}' \
               .format(np.mean(acc), np.max(acc), np.min(acc)))
     
-    best_epoch = np.argmax(test_acc)
+    '''best_epoch = np.argmax(test_acc)
     alpha = alphas[best_epoch]
     alpha_avg = alpha[data.homophily_rank]
-    np.save('./result/{}_JKlstm_{}_layerwise_att_sortby_{}_full60per.npy'.format(config['dataset'], config['att_mode'], config['pre_transform']), alpha_avg.to('cpu').detach().numpy().copy())
+    np.save('./result/{}_JKlstm_{}_layerwise_att_sortby_{}_full60per.npy'.format(config['dataset'], config['att_mode'], config['pre_transform']), alpha_avg.to('cpu').detach().numpy().copy())'''
 
 if __name__ == "__main__":
     load()

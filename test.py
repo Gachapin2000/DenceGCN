@@ -4,6 +4,7 @@ import numpy as np
 from scipy.sparse.construct import rand
 import seaborn as sns
 import os
+import re
 from sklearn.manifold import TSNE
 import scipy as sp
 import sklearn.base
@@ -15,15 +16,33 @@ import torch_geometric.transforms as T
 from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 
-from data import Planetoid
 
 
-for file in glob.glob('./result/*.npy'):
+'''acces = []
+with open('./reddit.txt', 'r') as r:
+    for line in r.readlines():
+        acc = re.findall('\[(0\.\d+)\]', line)
+        if len(acc) > 0:
+            acces.append(float(acc[0]))
+print(acces)
+print(len(acces))
+
+sum = 0.
+for i, acc in enumerate(acces):
+    i += 1
+    if i%10 != 0:
+        sum += acc
+    else:
+        sum += acc
+        print(sum / 10.)
+        sum = 0.'''
+
+'''for file in glob.glob('./result/*.npy'):
     plt.figure()
     att = np.load(file)
     sns.heatmap(att, vmin=0., vmax=1., center=0.5, cmap='Reds')
     plt.savefig(os.path.splitext(file)[0] + '.png')
-    plt.close()
+    plt.close()'''
 
 
 '''

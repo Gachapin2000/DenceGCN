@@ -72,9 +72,9 @@ class JumpingKnowledge(torch.nn.Module):
         assert isinstance(xs, list) or isinstance(xs, tuple)
 
         if self.mode == 'cat':
-            return torch.cat(xs, dim=-1)
+            return torch.cat(xs, dim=-1), _
         elif self.mode == 'max':
-            return torch.stack(xs, dim=-1).max(dim=-1)[0]
+            return torch.stack(xs, dim=-1).max(dim=-1)[0], _
         elif self.mode == 'lstm':
             x = torch.stack(xs, dim=1)  # x (n, l, d)
             # alpha (n, l, dl), _[0] (n, dl/2) for h and c

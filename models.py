@@ -109,8 +109,8 @@ class JKNet_GCNConv(nn.Module):
             x = F.dropout(F.relu(x), self.dropout, training=self.training)
             xs.append(x)
 
-        h, _ = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
-        return self.out_lin(h), _
+        h, alpha = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
+        return self.out_lin(h), alpha
 
 
 class JKNet_GATConv(nn.Module):
