@@ -17,26 +17,6 @@ from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 
 
-
-'''acces = []
-with open('./reddit.txt', 'r') as r:
-    for line in r.readlines():
-        acc = re.findall('\[(0\.\d+)\]', line)
-        if len(acc) > 0:
-            acces.append(float(acc[0]))
-print(acces)
-print(len(acces))
-
-sum = 0.
-for i, acc in enumerate(acces):
-    i += 1
-    if i%10 != 0:
-        sum += acc
-    else:
-        sum += acc
-        print(sum / 10.)
-        sum = 0.'''
-
 '''for file in glob.glob('./result/*.npy'):
     plt.figure()
     att = np.load(file)
@@ -45,7 +25,7 @@ for i, acc in enumerate(acces):
     plt.close()'''
 
 
-'''
+
 class BHTSNE(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
     def __init__(self, dimensions=2, perplexity=30.0, theta=0.5, rand_seed=-1, max_iter=100):
         self.dimensions = dimensions
@@ -112,7 +92,7 @@ if __name__ == "__main__":
     plt.ylabel("component 1")
     plt.title("PPI t-SNE visualization (blue is test, red is train)")
     plt.savefig("ppi_tsne.png")
-'''
+
 
 '''if __name__ == "__main__":
     dataset = Planetoid(root='.data/PubMed_None'.lower(), name='PubMed', seed=0, split='public')

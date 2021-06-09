@@ -84,13 +84,13 @@ def main():
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
     np.random.seed(0)
-    sizes_l = [400, 200, 100, 50, 25, 10]
+    sizes_l = [225, 150, 100, 50, 25, 10]
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
                                    sizes=sizes_l[-config['n_layer']:], batch_size=1024, shuffle=True,
-                                   num_workers=12) # sizes is sampling size when aggregates
+                                   num_workers=3) # sizes is sampling size when aggregates
     test_loader  = NeighborSampler(data.edge_index, node_idx=data.test_mask,
                                    sizes=sizes_l[-config['n_layer']:], batch_size=1024, shuffle=False,
-                                   num_workers=12) # all nodes is considered
+                                   num_workers=3) # all nodes is considered
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     test_acces = np.zeros(config['n_tri'])
