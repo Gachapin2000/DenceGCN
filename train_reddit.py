@@ -68,7 +68,7 @@ def run(tri, config, data, train_loader, test_loader):
     return test_acc
 
 
-@hydra.main(config_name="./config.yaml")
+@hydra.main(config_path='conf', config_name='config')
 def load(cfg : DictConfig) -> None:
     global config
     config = cfg[cfg.key]
@@ -84,7 +84,7 @@ def main():
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
     np.random.seed(0)
-    sizes_l = [225, 150, 100, 50, 25, 10]
+    sizes_l = [45, 40, 35, 30, 20, 15]
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
                                    sizes=sizes_l[-config['n_layer']:], batch_size=1024, shuffle=True,
                                    num_workers=3) # sizes is sampling size when aggregates
