@@ -6,11 +6,29 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 import argparse
 from tqdm import tqdm
+from omegaconf import DictConfig, ListConfig
+import mlflow
 
 import torch
 import torch.nn.functional as F
 from torch_geometric import utils
 from torch_geometric.utils.convert import to_networkx
+
+
+def log_params_from_omegaconf_dict(params):
+    for param_name, element in params.items():
+        _explore_recursive(param_name, element)
+
+def _explore_recursive(parent_name, element):
+    if isinstance(element, DictConfig):
+        for k, v in element.items():
+            if isinstance(v, DictConfig) or isinstance(v, ListConfig):
+                _explore_recursive(f'{parent_name}.{k}', v)
+            else:
+                mlflow.log_param(f'{parent_name}.{k}', v)
+    elif isinstance(element, ListConfig):
+        for i, v in enumerate(element):
+            mlflow.log_param(f'{parent_name}.{i}', v)
 
 
 def accuracy(output, labels):
