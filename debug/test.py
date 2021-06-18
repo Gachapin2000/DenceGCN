@@ -9,6 +9,15 @@ import torch_sparse
 from tqdm.std import tqdm
 from torch_geometric.data import NeighborSampler
 
+
+att = np.loadtxt('./result/homophily_score/Cora_homo_score.csv')
+att = att.T
+vars = np.array([np.var(v_att[:3]) for v_att in att])
+mean_vars = np.mean(vars)
+print(mean_vars)
+
+
+'''
 data = 'Reddit' # candidate is [Cora, CiteSeer, PubMed, PPI, Reddit]
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 root = '../data/{}_None'.format(data).lower()
@@ -69,7 +78,7 @@ elif data == 'Reddit':
     all_batch_score = np.stack(all_batch_score)
 
 
-'''    for batch_size, n_id, adjs in test_loader:
+    for batch_size, n_id, adjs in test_loader:
         y = data.y[n_id]
         adjs = [adj[0] for adj in adjs]
         edge_index = torch.cat(adjs, dim=-1)
@@ -81,5 +90,4 @@ elif data == 'Reddit':
             adj_sp = adj_sp * base_adj_sp
             adj_sp.data[:] = 1
             edge_index = from_scipy_sparse_matrix(adj_sp)
-            homophily_score = homophily.homophily_ratio(edge_index, y)
-'''
+            homophily_score = homophily.homophily_ratio(edge_index, y)'''

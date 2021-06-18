@@ -36,16 +36,19 @@ def calc_homo(data, name, mode):
 
     G = to_networkx(data)
     longest_path_length = 6
-    n_class, n_nodes = data.y.size()[1], data.x.size()[0]
+    n_class, n_nodes = torch.max(data.y), data.x.size()[0]
+    if mode == 'multi':
+        n_class = data.y.size(1)
     
-    if os.path.exists('./result/homophily_score/{}.npy'.format(name)):
-        paths_np = np.load('./result/homophily_score/{}.npy'.format(name))
+    if os.path.exists('./result/homophily_score/{}_paths.npy'.format(name)):
+        print('paths have been already made')
+        paths_np = np.load('./result/homophily_score/{}_paths.npy'.format(name))
         paths = torch.from_numpy(paths_np.astype(np.int16)).clone()
     else:
         paths = calc_length_of_all_pairs(G, n_nodes)
-        np.save('./result/homophily_score/{}'.format(name), paths.to('cpu').detach().numpy().copy()) 
+        np.save('./result/homophily_score/{}_paths.npy'.format(name), paths.to('cpu').detach().numpy().copy()) 
 
-    homo_scores = torch.zeros(longest_path_length)
+    homo_scores = []
     for l in range(1, longest_path_length+1):
         print('{}-th layer'.format(l))
         homo_scores_l_th_layer = torch.zeros(n_nodes)
@@ -65,53 +68,54 @@ def calc_homo(data, name, mode):
                         homo_scores_l_th_layer[i] += o
                     homo_scores_l_th_layer[i] /= (n_class * neighbor_size)
 
-        homo_scores[l-1] = torch.mean(homo_scores_l_th_layer)
+        homo_scores.append(homo_scores_l_th_layer)
+    homo_scores = torch.stack(homo_scores, dim=0)
     
     return homo_scores
 
 
-data = 'Reddit' # candidate is [Cora, CiteSeer, PubMed, PPI, Reddit]
+data_name = 'PPI' # candidate is [Cora, CiteSeer, PubMed, PPI, Reddit]
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-root = '../data/{}_None'.format(data).lower()
-print(data)
+root = '../data/{}_None'.format(data_name).lower()
+print(data_name)
 
-if data in ['Cora', 'CiteSeer', 'PubMed']:
+
+if data_name in ['Cora', 'CiteSeer', 'PubMed']:
     dataset = Planetoid(root          = root,
-                        name          = data,
+                        name          = data_name,
                         split         = 'public')
     data = dataset[0].to(device)
 
-    score = homophily.homophily_ratio(data.edge_index, data.y)
-    print(score)
+    score = calc_homo(data, data_name, 'single')
+    np.savetxt('./result/homophily_score/{}_homo_score.csv'.format(data_name), score.to('cpu').detach().numpy().copy())
 
 
-elif data == 'PPI':
+elif data_name == 'PPI':
     train_dataset = PPI(root, split='train')
     val_dataset   = PPI(root, split='val')
     test_dataset  = PPI(root, split='test')
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-    homo_scores_all_graphs = []
 
     for i, data in enumerate(train_loader):
         data = data.to('cuda')
-        homo_scores = calc_homo(data, 'train_g{}'.format(i), 'multi')
-        homo_scores_all_graphs.append(homo_scores)
+        graph_name = '{}_train_g{}'.format(data_name, i)
+        score = calc_homo(data, graph_name, 'multi')
+        np.savetxt('./result/homophily_score/{}_homo_score.csv'.format(graph_name), score.to('cpu').detach().numpy().copy())
     for i, data in enumerate(val_loader):
         data = data.to('cuda')
-        homo_scores = calc_homo(data, 'val_g{}'.format(i), 'multi')
-        homo_scores_all_graphs.append(homo_scores)
+        graph_name = '{}_val_g{}'.format(data_name, i)
+        score = calc_homo(data, graph_name, 'multi')
+        np.savetxt('./result/homophily_score/{}_homo_score.csv'.format(graph_name), score.to('cpu').detach().numpy().copy())
     for i, data in enumerate(test_loader):
         data = data.to('cuda')
-        homo_scores = calc_homo(data, 'test_g{}'.format(i), 'multi')
-        homo_scores_all_graphs.append(homo_scores)
-    homo_scores_all_graphs = torch.cat(homo_scores_all_graphs, dim=0)
-    homo_scores_all_graphs = torch.mean(homo_scores_all_graphs, dim=0)
-    np.savetxt('./result/homophily_score/PPI_homo_i_th_layer.csv', homo_scores_all_graphs.to('cpu').detach().numpy().copy())
+        graph_name = '{}_test_g{}'.format(data_name, i)
+        score = calc_homo(data, graph_name, 'multi')
+        np.savetxt('./result/homophily_score/{}_homo_score.csv'.format(graph_name), score.to('cpu').detach().numpy().copy())
 
 
-elif data == 'Reddit':
+elif data_name == 'Reddit':
     dataset = Reddit(root=root)
     data = dataset[0]
 
