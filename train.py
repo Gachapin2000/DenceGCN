@@ -1,4 +1,4 @@
-import os.path as osp
+import os
 import argparse
 import numpy as np
 import statistics
@@ -16,7 +16,7 @@ import mlflow
 
 from data import Planetoid
 from models import return_net
-from utils import accuracy, log_params_from_omegaconf_dict, HomophilyRank, HomophilyRank2
+from utils import accuracy, summarize_acc, log_params_from_omegaconf_dict, HomophilyRank, HomophilyRank2
 
 
 def train(epoch, config, data, model, optimizer):
@@ -25,7 +25,7 @@ def train(epoch, config, data, model, optimizer):
     optimizer.zero_grad()
 
     # train by class label
-    h = model(data.x, data.edge_index)
+    h, _ = model(data.x, data.edge_index)
     prob_labels = F.log_softmax(h, dim=1)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
     acc_train, _  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
@@ -35,7 +35,7 @@ def train(epoch, config, data, model, optimizer):
 
     # validation
     model.eval()
-    h = model(data.x, data.edge_index)
+    h, _ = model(data.x, data.edge_index)
     prob_labels_val = F.log_softmax(h, dim=1)
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
     acc_val, _ = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
@@ -51,15 +51,11 @@ def train(epoch, config, data, model, optimizer):
 
 def test(config, data, model):
     model.eval()
-    h = model(data.x, data.edge_index)
+    h, alpha = model(data.x, data.edge_index)
     prob_labels_test = F.log_softmax(h, dim=1)
     loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
-    top = data.homophily_rank['avg'][:500]
-    bot = data.homophily_rank['avg'][-500:]
     acc, _ = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
-    acc_top, _ = accuracy(prob_labels_test[top], data.y[top])
-    acc_bot, _ = accuracy(prob_labels_test[bot], data.y[bot])
 
     '''print("Test set results:",
           "loss(test)= {:.4f}".format(loss_test.data.item()),
@@ -67,19 +63,11 @@ def test(config, data, model):
           "accuracy(top)= {:.4f}".format(acc_top.data.item()),
           "accuracy(bottom)= {:.4f}".format(acc_bot.data.item()))'''
 
-    return acc, acc_top, acc_bot
+    return acc, alpha
 
 
 def run(data, config, seed=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    if(config['split'] == 'full_random60per'):
-        dataset = Planetoid(root          = root.lower(),
-                            name          = config['dataset'],
-                            split         = config['split'], 
-                            transform     = eval(config['transform']),
-                            pre_transform = eval(config['pre_transform']))
-        data = dataset[0].to(device)
-
     model = return_net(config).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
                                  lr           = config['learning_rate'], 
@@ -98,7 +86,8 @@ def run(data, config, seed=None):
         if(bad_counter == config['patience']):
             break
 
-    return test(config, data, model)
+    return test(config, data, model), summarize_acc(model, data)
+
 
 @hydra.main(config_path='conf', config_name='config')
 def load(cfg : DictConfig) -> None:
@@ -118,31 +107,25 @@ def main():
                         pre_transform = eval(config['pre_transform']))
     data = dataset[0].to(device)
 
-    mlflow.set_tracking_uri('./mlruns')
-    mlflow.set_experiment('sample')
-    with mlflow.start_run():
-        test_acc = np.zeros(config['n_tri'])
-        test_acc_top = np.zeros(config['n_tri'])
-        test_acc_bot = np.zeros(config['n_tri'])
-        # alphas = []
-        for tri in tqdm(range(config['n_tri'])):
-            log_params_from_omegaconf_dict(config)
-            test_acc[tri], test_acc_top[tri], test_acc_bot[tri] = run(data, config, seed=tri)
-            # alphas.append(alpha)
-        print('config: {}\n'.format(config))
-        for acc_criteria in ['test_acc', 'test_acc_top', 'test_acc_bot']:
-            acc = eval(acc_criteria)
-            print('whole {} ({} tries) = {}'.format(acc_criteria, config['n_tri'], acc))
-            print('\tave={:.3f} max={:.3f} min={:.3f}' \
-                  .format(np.mean(acc), np.max(acc), np.min(acc)))
+    test_acc = np.zeros(config['n_tri'])
+    alphas, whole_acces = [], []
+    for tri in tqdm(range(config['n_tri'])):
+        (test_acc[tri], alpha), whole_acc = run(data, config, seed=tri)
+        alphas.append(alpha)
+        whole_acces.append(whole_acc)
+    print('config: {}\n'.format(config))
 
-        mlflow.log_metric("loss", np.mean(acc))    
-    
-        '''best_epoch = np.argmax(test_acc)
-        alpha = alphas[best_epoch]
-        alpha_avg = alpha[data.homophily_rank]
-        np.save('./result/{}_JKlstm_{}_layerwise_att_sortby_{}_full60per.npy'.format(config['dataset'], config['att_mode'], config['pre_transform']), alpha_avg.to('cpu').detach().numpy().copy())'''
+    print('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
+    print('\tave={:.3f} max={:.3f} min={:.3f}' \
+          .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
 
+    for tri, (alpha, whole_acc) in enumerate(zip(alphas, whole_acces)):
+        file_name = './result/layerwise_att/{}_{}layers_JKlstm_{}_layerwise_att_tri{}' \
+                .format(config['dataset'], config['n_layer'], config['att_mode'], tri)
+        np.save(file_name + '.npy', alpha.to('cpu').detach().numpy().copy())
+        np.save(file_name + '_acc.npy', whole_acc.to('cpu').detach().numpy().copy())
+        
+        
 if __name__ == "__main__":
     load()
     main()

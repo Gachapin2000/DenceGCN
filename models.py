@@ -51,8 +51,8 @@ class JKNet_SAGEConv(nn.Module):
             xs.append(x)
         xs = [x[:batch_size] for x in xs]
 
-        h, _ = self.jk(xs) # xs = [h1,h2,h3, ...,hL], h is (n, d)
-        return self.out_lin(h), _
+        h, alpha = self.jk(xs) # xs = [h1,h2,h3, ...,hL], h is (n, d)
+        return self.out_lin(h), alpha
 
     def inference(self, x_all, all_subgraph_loader):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -160,8 +160,8 @@ class JKNet_GATConv(nn.Module):
             x = F.dropout(F.relu(x), self.dropout, training=self.training)
             xs.append(x)
 
-        h, _ = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
-        return self.out_lin(h), _
+        h, alpha = self.jk(xs)  # xs = [h1,h2,h3,...,hL], h is (n, d)
+        return self.out_lin(h), alpha
 
 
 class GATNet(nn.Module):

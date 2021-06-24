@@ -1,93 +1,58 @@
-import numpy as np
-from tqdm import tqdm
+import os
+import sys
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
-from torch_geometric.datasets import Planetoid, PPI, Reddit
-from torch_sparse import SparseTensor
 import torch
-from torch_geometric.utils import homophily, to_scipy_sparse_matrix, from_scipy_sparse_matrix
-import torch_sparse
-from tqdm.std import tqdm
+from torch_geometric.datasets import Reddit
+from torch_geometric.datasets import PPI
+from torch_geometric.data import DataLoader
 from torch_geometric.data import NeighborSampler
+import torch.nn.functional as F
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from models import return_net
 
 
-att = np.loadtxt('./result/homophily_score/Cora_homo_score.csv')
-att = att.T
-vars = np.array([np.var(v_att[:3]) for v_att in att])
-mean_vars = np.mean(vars)
-print(mean_vars)
+@hydra.main(config_path='../conf', config_name='config')
+def load(cfg : DictConfig) -> None:
+    global config
+    config = cfg[cfg.key]
 
+def main():
+    global config
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-'''
-data = 'Reddit' # candidate is [Cora, CiteSeer, PubMed, PPI, Reddit]
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-root = '../data/{}_None'.format(data).lower()
-print(data)
-
-if data in ['Cora', 'CiteSeer', 'PubMed']:
-    dataset = Planetoid(root          = root,
-                        name          = data,
-                        split         = 'public')
-    data = dataset[0]
-    
-    n_nodes = data.x.size()[0]
-    adj_sp = to_scipy_sparse_matrix(edge_index=data.edge_index, 
-                                    num_nodes=n_nodes)
-
-    n_step = 3
-    base_adj_sp = adj_sp.copy()
-    for i in range(n_step):
-        adj_sp *= adj_sp * base_adj_sp
-        adj_sp.data[:] = 1
-        print(base_adj_sp, end='\n\n')
-
-
-elif data == 'Reddit':
-    dataset = Reddit(root=root)
+    root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    dataset = Reddit(root=root.lower())
     data = dataset[0].to(device)
 
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
-    np.random.seed(0)
-    sizes_l = [15, 10, 5, 5, 3, 3]
-    n_layer = 3
+    sizes_l = [25, 10, 10, 10, 10, 10]
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
-                                   sizes=sizes_l[:n_layer], batch_size=1024, shuffle=True,
-                                   num_workers=3) # sizes is sampling size when aggregates
+                                   sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
+                                   num_workers=12) # sizes is sampling size when aggregates
     test_loader  = NeighborSampler(data.edge_index, node_idx=data.test_mask,
-                                   sizes=sizes_l[:n_layer], batch_size=1024, shuffle=False,
-                                   num_workers=3) # all nodes is considered
+                                   sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
+                                   num_workers=12) # all nodes is considered
 
+    model = return_net(config).to(device)
+    model.load_state_dict(torch.load('./model.pth'))
 
-    all_batch_score = []
-    for batch_size, n_id, adjs in tqdm(train_loader):
-        y = data.y[n_id]
-        adjs = [adj[0] for adj in adjs]
-        edge_index = torch.cat(adjs, dim=-1)
-        num_nodes = n_id.size(0)
-        adj_sp = to_scipy_sparse_matrix(edge_index=edge_index, num_nodes=num_nodes)
-
-        base_adj_sp = adj_sp.copy()
-        scores = np.zeros(n_layer)
-        for l in range(n_layer):
-            adj_sp = adj_sp * base_adj_sp
-            adj_sp.data[:] = 1
-            edge_index = from_scipy_sparse_matrix(adj_sp)
-            homophily_score = homophily.homophily_ratio(edge_index, y)
-            scores[l] = homophily_score
-        all_batch_score.append(scores)
-    all_batch_score = np.stack(all_batch_score)
-
-
+    alphas = []
+    total_correct = 0
     for batch_size, n_id, adjs in test_loader:
-        y = data.y[n_id]
-        adjs = [adj[0] for adj in adjs]
-        edge_index = torch.cat(adjs, dim=-1)
-        num_nodes = n_id.size(0)
-        adj_sp = to_scipy_sparse_matrix(edge_index=edge_index, num_nodes=num_nodes)
+        adjs = [adj.to(device) for adj in adjs]
+        h, alpha = model(data.x[n_id], adjs, batch_size)
+        alphas.append(alpha)
+        prob_labels = F.log_softmax(h, dim=1)
+        total_correct += int(prob_labels.argmax(dim=-1).eq(data.y[n_id[:batch_size]]).sum())
 
-        base_adj_sp = adj_sp.copy()
-        for l in range(n_layer):
-            adj_sp = adj_sp * base_adj_sp
-            adj_sp.data[:] = 1
-            edge_index = from_scipy_sparse_matrix(adj_sp)
-            homophily_score = homophily.homophily_ratio(edge_index, y)'''
+    approx_acc = total_correct / int(data.test_mask.sum())
+
+    print(approx_acc)
+
+if __name__ == "__main__":
+    load()
+    main()

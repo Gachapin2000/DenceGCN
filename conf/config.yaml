@@ -178,7 +178,7 @@ JKNet_Reddit: &JKNet_Reddit
 JKNet_PPI: &JKNet_PPI
   <<: [*PPI, *JKNet]
   model: JKNet_GATConv # override >> JKNet
-  n_layer: 3
+  n_layer: 2
   n_hid: 256
   n_head: 4
   iscat: True

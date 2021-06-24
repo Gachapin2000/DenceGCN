@@ -37,6 +37,24 @@ def accuracy(output, labels):
     return correct.sum() / len(labels), correct
 
 
+def summarize_acc(model, data, mode='single'):
+    model.eval()
+    h, _ = model(data.x, data.edge_index)
+    if mode == 'single':
+        prob_labels = F.log_softmax(h, dim=1)
+        preds = prob_labels.max(1)[1].type_as(data.y)
+        correct = preds.eq(data.y).double()
+    else: # mode == 'multi'
+        ys, preds = [], []
+        for data in loader: # only one graph (=g1+g2)
+            data = data.to(device)
+            ys.append(data.y)
+            out, alpha = model(data.x, data.edge_index)
+            alphas.append(alpha)
+            preds.append((out > 0).float().cpu())s
+
+    return correct
+
 class HomophilyRank:
     def calc_length_of_all_pairs(self, G, n_nodes):
         paths = torch.zeros(n_nodes, n_nodes)

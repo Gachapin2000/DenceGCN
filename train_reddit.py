@@ -17,6 +17,7 @@ def train(epoch, config, data, train_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.train()
 
+    alphas = []
     total_loss = total_correct = 0
     for batch_size, n_id, adjs in train_loader:
         # batch_size is 1024, 
@@ -25,11 +26,14 @@ def train(epoch, config, data, train_loader, model, optimizer):
 
         optimizer.zero_grad()
         # n_id is (107741)(=[v_53030, v_182890, ...]) , it is Batch_0
-        h, _ = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
+        h, alpha = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
+        alphas.append(alpha)
         prob_labels = F.log_softmax(h, dim=1)
         loss = F.nll_loss(prob_labels, data.y[n_id[:batch_size]])
         loss.backward()
         optimizer.step()
+    
+    return torch.cat(alphas, dim=0)
 
 
 @torch.no_grad()
@@ -37,6 +41,7 @@ def test(config, data, test_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.eval()
 
+    alphas = []
     total_correct = 0
     for batch_size, n_id, adjs in test_loader:
         # batch_size is 1024, 
@@ -44,14 +49,14 @@ def test(config, data, test_loader, model, optimizer):
         adjs = [adj.to(device) for adj in adjs] # 2 adj, because of 2 layer-conv
 
         # n_id is (107741)(=[v_53030, v_182890, ...]) , it is Batch_0
-        h, _ = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
+        h, alpha = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
+        alphas.append(alpha)
         prob_labels = F.log_softmax(h, dim=1)
-
         total_correct += int(prob_labels.argmax(dim=-1).eq(data.y[n_id[:batch_size]]).sum())
 
     approx_acc = total_correct / int(data.test_mask.sum())
     
-    return approx_acc
+    return approx_acc, torch.cat(alphas, dim=0)
 
 def run(tri, config, data, train_loader, test_loader):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -61,11 +66,12 @@ def run(tri, config, data, train_loader, test_loader):
                                  lr           = config['learning_rate'], 
                                  weight_decay = config['weight_decay'])
     
-    for epoch in range(1, config['epochs']):
-        train(epoch, config, data, train_loader, model, optimizer)
-    test_acc = test(config, data, test_loader, model, optimizer)
+    for epoch in tqdm(range(1, config['epochs'])):
+        alpha_train = train(epoch, config, data, train_loader, model, optimizer)
+    test_acc, alpha_test = test(config, data, test_loader, model, optimizer)
 
-    return test_acc
+    torch.save(model, './model.pth')
+    return test_acc, alpha_train, alpha_test
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -83,32 +89,31 @@ def main():
 
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
-    np.random.seed(0)
     sizes_l = [25, 10, 10, 10, 10, 10]
     print(sizes_l[:config['n_layer']])
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
-                                   sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=True,
-                                   num_workers=3) # sizes is sampling size when aggregates
+                                   sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
+                                   num_workers=12) # sizes is sampling size when aggregates
     test_loader  = NeighborSampler(data.edge_index, node_idx=data.test_mask,
                                    sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
-                                   num_workers=3) # all nodes is considered
+                                   num_workers=12) # all nodes is considered
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     test_acces = np.zeros(config['n_tri'])
-    # alphas = []
+    alphas = []
     for tri in range(config['n_tri']):
-        test_acc = run(tri, config, data, train_loader, test_loader)
+        test_acc, alpha_train, alpha_test = run(tri, config, data, train_loader, test_loader)
         test_acces[tri] = test_acc
-        # alphas.append(alpha)
+        alphas.append(torch.cat([alpha_train, alpha_test], dim=0))
     print('config: {}\n'.format(config))
     print('whole test acc ({} tries): {}'.format(config['n_tri'], test_acces))
     print('\tave={:.3f} max={:.3f} min={:.3f}' \
               .format(np.mean(test_acces), np.max(test_acces), np.min(test_acces)))
-    
-    # best_epoch = np.argmax(test_acces)
-    # alpha = alphas[best_epoch]
-    # np.save('./result/{}_JKlstm_{}_layerwise_notsort.npy'.format(config['dataset'], config['att_mode']), alpha.to('cpu').detach().numpy().copy())
-    
+
+    '''for tri, alpha in enumerate(alphas):
+        np.save('./result/layerwise_att/{}_{}layers_JKlstm_{}_layerwise_att_tri{}.npy'
+                .format(config['dataset'], config['n_layer'], config['att_mode'], tri), \
+                alpha.to('cpu').detach().numpy().copy())'''
 
 if __name__ == "__main__":
     load()
