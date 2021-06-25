@@ -1,10 +1,11 @@
-import os.path as osp
+import os
 import argparse
 import numpy as np
 import statistics
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score
+from torch_geometric.nn import models
 from tqdm import tqdm
 
 import torchvision.transforms as transforms
@@ -16,7 +17,7 @@ from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 
 from models import return_net
-from utils import accuracy, HomophilyRank, HomophilyRank2, summarize_acc
+from utils import save_conf
 
 
 def train(epoch, config, loader, model, optimizer, device):
@@ -24,40 +25,32 @@ def train(epoch, config, loader, model, optimizer, device):
     model.train()
     criteria = torch.nn.BCEWithLogitsLoss()
 
-    total_loss = 0.
-    alphas = []
     for data in loader: # in [g1, g2, ..., g20]
         data = data.to(device)
         optimizer.zero_grad()
-        out, alpha = model(data.x, data.edge_index)
-        alphas.append(alpha)
+        out, _ = model(data.x, data.edge_index)
         loss = criteria(out, data.y)
-        total_loss += loss.item() * data.num_graphs # num_graphs is always 1
         loss.backward()
         optimizer.step()
-    
-    return torch.cat(alphas, dim=0)
 
 
 @torch.no_grad()
 def test(config, loader, model, device):
     model.eval()
 
-    alphas = []
     ys, preds = [], []
     for data in loader: # only one graph (=g1+g2)
         data = data.to(device)
         ys.append(data.y)
         out, alpha = model(data.x, data.edge_index)
-        alphas.append(alpha)
         preds.append((out > 0).float().cpu())
 
     y    = torch.cat(ys, dim=0).to('cpu').detach().numpy().copy()
     pred = torch.cat(preds, dim=0).to('cpu').detach().numpy().copy()
-    return f1_score(y, pred, average='micro') if pred.sum() > 0 else 0, torch.cat(alphas, dim=0)
+    return f1_score(y, pred, average='micro') if pred.sum() > 0 else 0
 
 
-def run(data_loader, config, device):
+def run(tri, config, data_loader, device):
     train_loader, val_loader, test_loader = data_loader
 
     model = return_net(config).to(device)
@@ -66,10 +59,10 @@ def run(data_loader, config, device):
                                  weight_decay = config['weight_decay'])
 
     for epoch in tqdm(range(1, config['epochs'])):
-        alpha_train = train(epoch, config, train_loader, model, optimizer, device)
-    acc, alpha_test = test(config, test_loader, model, device)
-    whole_acces = summarize_acc(model, [train_loader]+[test_loader]), mode='multi')
-    return acc, alpha_train, alpha_test, whole_acces
+        train(epoch, config, train_loader, model, optimizer, device)
+    test_acc = test(config, test_loader, model, device)
+    
+    return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -79,7 +72,9 @@ def load(cfg : DictConfig) -> None:
 
 def main():
     global config
-    print('config: {}\n'.format(config))
+    print(config)
+    dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    os.makedirs(dir_)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
@@ -94,21 +89,17 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
     data_loader = [train_loader, val_loader, test_loader]
 
-    alphas = []
     test_acc = np.zeros(config['n_tri'])
     for tri in range(config['n_tri']):
-        acc, alpha_train, alpha_test, whole_acces = run(data_loader, config, device)
-        test_acc[tri] = acc
-        alphas.append(torch.cat([alpha_train, alpha_test], dim=0))
-    print('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
-    print('\tave={:.3f} max={:.3f} min={:.3f}' \
-          .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
-
-    for tri, alpha in enumerate(alphas):
-        np.save('./result/layerwise_att/{}_{}layers_JKlstm_{}_layerwise_att_tri{}.npy'
-                .format(config['dataset'], config['n_layer'], config['att_mode'], tri), \
-                alpha.to('cpu').detach().numpy().copy())
-
+        test_acc[tri], model = run(tri, config, data_loader, device)
+        torch.save(model.state_dict(), dir_ + '/{}th_model.pth'.format(tri))
+    
+    save_conf(config, dir_ + '/config.txt')
+    with open(dir_ + '/acc.txt', 'w') as w:
+        w.write('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
+        w.write('\tave={:.3f} max={:.3f} min={:.3f}' \
+              .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
+        
 if __name__ == "__main__":
     load()
     main()

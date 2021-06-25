@@ -2,6 +2,7 @@ import os
 import argparse
 import numpy as np
 import statistics
+import yaml
 import hydra
 from hydra import utils
 from tqdm import tqdm
@@ -16,7 +17,7 @@ import mlflow
 
 from data import Planetoid
 from models import return_net
-from utils import accuracy, summarize_acc, log_params_from_omegaconf_dict, HomophilyRank, HomophilyRank2
+from utils import accuracy, save_conf, HomophilyRank
 
 
 def train(epoch, config, data, model, optimizer):
@@ -28,8 +29,6 @@ def train(epoch, config, data, model, optimizer):
     h, _ = model(data.x, data.edge_index)
     prob_labels = F.log_softmax(h, dim=1)
     loss_train = F.nll_loss(prob_labels[data.train_mask], data.y[data.train_mask])
-    acc_train, _  = accuracy(prob_labels[data.train_mask], data.y[data.train_mask])
-
     loss_train.backward()
     optimizer.step()
 
@@ -38,35 +37,19 @@ def train(epoch, config, data, model, optimizer):
     h, _ = model(data.x, data.edge_index)
     prob_labels_val = F.log_softmax(h, dim=1)
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
-    acc_val, _ = accuracy(prob_labels_val[data.val_mask], data.y[data.val_mask])
-    
-    '''print('Epoch: {:04d}'.format(epoch),
-          'loss_train: {:.4f}'.format(loss_train.data.item()),
-          'acc_train: {:.4f}'.format(acc_train.data.item()),
-          'loss_val: {:.4f}'.format(loss_val.data.item()),
-          'acc_val: {:.4f}'.format(acc_val.data.item()), end=' ')'''
 
     return loss_val
 
-
 def test(config, data, model):
     model.eval()
-    h, alpha = model(data.x, data.edge_index)
+    h, _ = model(data.x, data.edge_index)
     prob_labels_test = F.log_softmax(h, dim=1)
-    loss_test = F.nll_loss(prob_labels_test[data.test_mask], data.y[data.test_mask])
-
     acc, _ = accuracy(prob_labels_test[data.test_mask], data.y[data.test_mask])
 
-    '''print("Test set results:",
-          "loss(test)= {:.4f}".format(loss_test.data.item()),
-          "accuracy(test)= {:.4f}".format(acc.data.item()),
-          "accuracy(top)= {:.4f}".format(acc_top.data.item()),
-          "accuracy(bottom)= {:.4f}".format(acc_bot.data.item()))'''
-
-    return acc, alpha
+    return acc
 
 
-def run(data, config, seed=None):
+def run(tri, config, data, seed=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = return_net(config).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
@@ -86,7 +69,8 @@ def run(data, config, seed=None):
         if(bad_counter == config['patience']):
             break
 
-    return test(config, data, model), summarize_acc(model, data)
+    test_acc = test(config, data, model)
+    return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -96,6 +80,9 @@ def load(cfg : DictConfig) -> None:
 
 def main():
     global config
+    print(config)
+    dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    os.makedirs(dir_)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
@@ -108,23 +95,15 @@ def main():
     data = dataset[0].to(device)
 
     test_acc = np.zeros(config['n_tri'])
-    alphas, whole_acces = [], []
     for tri in tqdm(range(config['n_tri'])):
-        (test_acc[tri], alpha), whole_acc = run(data, config, seed=tri)
-        alphas.append(alpha)
-        whole_acces.append(whole_acc)
-    print('config: {}\n'.format(config))
+        test_acc[tri], model = run(tri, config, data, seed=tri)
+        torch.save(model.state_dict(), dir_ + '/{}th_model.pth'.format(tri))
 
-    print('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
-    print('\tave={:.3f} max={:.3f} min={:.3f}' \
-          .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
-
-    for tri, (alpha, whole_acc) in enumerate(zip(alphas, whole_acces)):
-        file_name = './result/layerwise_att/{}_{}layers_JKlstm_{}_layerwise_att_tri{}' \
-                .format(config['dataset'], config['n_layer'], config['att_mode'], tri)
-        np.save(file_name + '.npy', alpha.to('cpu').detach().numpy().copy())
-        np.save(file_name + '_acc.npy', whole_acc.to('cpu').detach().numpy().copy())
-        
+    save_conf(config, dir_ + '/config.txt')
+    with open(dir_ + '/acc.txt', 'w') as w:
+        w.write('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
+        w.write('\tave={:.3f} max={:.3f} min={:.3f}' \
+              .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
         
 if __name__ == "__main__":
     load()

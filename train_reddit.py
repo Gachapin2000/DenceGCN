@@ -1,4 +1,4 @@
-import os.path as osp
+import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import numpy as np
@@ -11,29 +11,20 @@ from torch_geometric.data import NeighborSampler
 from torch_geometric.nn import SAGEConv
 
 from models import return_net
-
+from utils import save_conf
 
 def train(epoch, config, data, train_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.train()
 
-    alphas = []
-    total_loss = total_correct = 0
     for batch_size, n_id, adjs in train_loader:
-        # batch_size is 1024, 
-        # `adjs` holds a list of `(edge_index, e_id, size)` tuples.
-        adjs = [adj.to(device) for adj in adjs] # 2 adj, because of 2 layer-conv
-
+        adjs = [adj.to(device) for adj in adjs]
         optimizer.zero_grad()
-        # n_id is (107741)(=[v_53030, v_182890, ...]) , it is Batch_0
-        h, alpha = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
-        alphas.append(alpha)
+        h, _ = model(data.x[n_id], adjs, batch_size)
         prob_labels = F.log_softmax(h, dim=1)
         loss = F.nll_loss(prob_labels, data.y[n_id[:batch_size]])
         loss.backward()
         optimizer.step()
-    
-    return torch.cat(alphas, dim=0)
 
 
 @torch.no_grad()
@@ -41,22 +32,16 @@ def test(config, data, test_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.eval()
 
-    alphas = []
     total_correct = 0
     for batch_size, n_id, adjs in test_loader:
-        # batch_size is 1024, 
-        # `adjs` holds a list of `(edge_index, e_id, size)` tuples.
-        adjs = [adj.to(device) for adj in adjs] # 2 adj, because of 2 layer-conv
-
-        # n_id is (107741)(=[v_53030, v_182890, ...]) , it is Batch_0
-        h, alpha = model(data.x[n_id], adjs, batch_size) # out is (1024, 41)
-        alphas.append(alpha)
+        adjs = [adj.to(device) for adj in adjs]
+        h, alpha = model(data.x[n_id], adjs, batch_size)
         prob_labels = F.log_softmax(h, dim=1)
         total_correct += int(prob_labels.argmax(dim=-1).eq(data.y[n_id[:batch_size]]).sum())
-
     approx_acc = total_correct / int(data.test_mask.sum())
     
-    return approx_acc, torch.cat(alphas, dim=0)
+    return approx_acc
+
 
 def run(tri, config, data, train_loader, test_loader):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -67,11 +52,10 @@ def run(tri, config, data, train_loader, test_loader):
                                  weight_decay = config['weight_decay'])
     
     for epoch in tqdm(range(1, config['epochs'])):
-        alpha_train = train(epoch, config, data, train_loader, model, optimizer)
-    test_acc, alpha_test = test(config, data, test_loader, model, optimizer)
+        train(epoch, config, data, train_loader, model, optimizer)
+    test_acc = test(config, data, test_loader, model, optimizer)
 
-    torch.save(model, './model.pth')
-    return test_acc, alpha_train, alpha_test
+    return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -81,6 +65,9 @@ def load(cfg : DictConfig) -> None:
 
 def main():
     global config
+    print(config)
+    dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    os.makedirs(dir_)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
@@ -90,7 +77,6 @@ def main():
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
     sizes_l = [25, 10, 10, 10, 10, 10]
-    print(sizes_l[:config['n_layer']])
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
                                    sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
                                    num_workers=12) # sizes is sampling size when aggregates
@@ -98,23 +84,17 @@ def main():
                                    sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
                                    num_workers=12) # all nodes is considered
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    test_acces = np.zeros(config['n_tri'])
-    alphas = []
+    test_acc = np.zeros(config['n_tri'])
     for tri in range(config['n_tri']):
-        test_acc, alpha_train, alpha_test = run(tri, config, data, train_loader, test_loader)
-        test_acces[tri] = test_acc
-        alphas.append(torch.cat([alpha_train, alpha_test], dim=0))
-    print('config: {}\n'.format(config))
-    print('whole test acc ({} tries): {}'.format(config['n_tri'], test_acces))
-    print('\tave={:.3f} max={:.3f} min={:.3f}' \
-              .format(np.mean(test_acces), np.max(test_acces), np.min(test_acces)))
+        test_acc[tri], model = run(tri, config, data, train_loader, test_loader)
+        torch.save(model.state_dict(), dir_ + '/{}th_model.pth'.format(tri))
 
-    '''for tri, alpha in enumerate(alphas):
-        np.save('./result/layerwise_att/{}_{}layers_JKlstm_{}_layerwise_att_tri{}.npy'
-                .format(config['dataset'], config['n_layer'], config['att_mode'], tri), \
-                alpha.to('cpu').detach().numpy().copy())'''
-
+    save_conf(config, dir_ + '/config.txt')
+    with open(dir_ + '/acc.txt', 'w') as w:
+        w.write('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
+        w.write('\tave={:.3f} max={:.3f} min={:.3f}' \
+              .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
+        
 if __name__ == "__main__":
     load()
     main()

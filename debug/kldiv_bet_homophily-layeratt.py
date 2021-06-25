@@ -6,6 +6,7 @@ import glob
 import os
 from natsort import natsorted
 
+from load_trained_model import load
 
 def calc_kldiv(a_vec, b_vec):
     return np.sum([a * np.log(a/b) for a, b in zip(a_vec, b_vec)])

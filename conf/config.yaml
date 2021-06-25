@@ -1,4 +1,4 @@
-key: JKNet_Reddit
+key: JKNet_Cora
 
 # -------mlflow & hydra-------
 mlflow: 
@@ -63,7 +63,7 @@ PPI: &PPI
   transform: None
   n_feat: 50
   n_class: 121
-  n_tri: 1
+  n_tri: 10
   learning_rate: 0.005
   weight_decay: 0.    
   dropout: 0.

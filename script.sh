@@ -1,18 +1,21 @@
 IFS_BACKUP=$IFS
 IFS=$'\n'
 
-ary=('python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=3 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=go'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=3 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=mx'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=3 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=sd'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=4 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=go'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=4 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=mx'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=4 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=sd'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=5 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=go'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=5 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=mx'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=5 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=sd'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=6 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=go'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=6 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=mx'
-     'python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_layer=6 JKNet_Reddit.n_hid=256 JKNet_Reddit.epochs=20 JKNet_Reddit.n_tri=10 JKNet_Reddit.att_mode=sd')
+ary=('python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_3layer_lstm_go --tri_id 1'
+     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_3layer_lstm_mx --tri_id 1'
+     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_3layer_lstm_sd --tri_id 3'
+     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_5layer_lstm_go --tri_id 3'
+     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_5layer_lstm_mx --tri_id 0'
+     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_5layer_lstm_sd --tri_id 4'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_3layer_lstm_go --tri_id 0'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_3layer_lstm_mx --tri_id 4'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_3layer_lstm_sd --tri_id 3'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_4layer_lstm_go --tri_id 1'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_4layer_lstm_mx --tri_id 0'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_4layer_lstm_sd --tri_id 4'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_6layer_lstm_go --tri_id 0'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_6layer_lstm_mx --tri_id 1'
+     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_6layer_lstm_sd --tri_id 2')
 
 for STR in ${ary[@]}
 do

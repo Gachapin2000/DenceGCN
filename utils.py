@@ -1,4 +1,5 @@
 import itertools
+from logging import config
 import random
 import networkx as nx
 import numpy as np
@@ -15,21 +16,21 @@ from torch_geometric import utils
 from torch_geometric.utils.convert import to_networkx
 
 
-def log_params_from_omegaconf_dict(params):
-    for param_name, element in params.items():
-        _explore_recursive(param_name, element)
+def save_conf(config, file):
+    with open(file, 'w') as w:
+        for key in config.keys():
+            w.write('{}\t{}\t{}\n'.format(key, config[key], type(config[key]).__name__))
 
-def _explore_recursive(parent_name, element):
-    if isinstance(element, DictConfig):
-        for k, v in element.items():
-            if isinstance(v, DictConfig) or isinstance(v, ListConfig):
-                _explore_recursive(f'{parent_name}.{k}', v)
-            else:
-                mlflow.log_param(f'{parent_name}.{k}', v)
-    elif isinstance(element, ListConfig):
-        for i, v in enumerate(element):
-            mlflow.log_param(f'{parent_name}.{i}', v)
-
+def read_conf(file):
+    config = {}
+    with open(file, 'r') as r:
+        for line in r.readlines():
+            key, value, type_ = line.rstrip().split('\t')
+            if   type_=='int': value = int(value)
+            elif type_=='float': value = float(value)
+            else: value = str(value)
+            config[key] = value
+    return config
 
 def accuracy(output, labels):
     preds = output.max(1)[1].type_as(labels)
@@ -51,7 +52,7 @@ def summarize_acc(model, data, mode='single'):
             ys.append(data.y)
             out, alpha = model(data.x, data.edge_index)
             alphas.append(alpha)
-            preds.append((out > 0).float().cpu())s
+            preds.append((out > 0).float().cpu())
 
     return correct
 
