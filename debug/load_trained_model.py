@@ -21,13 +21,13 @@ from data import Planetoid
 
 
 def load(path, tri_id):
-    config = read_conf(path + '../config.txt')
+    config = read_conf(path + '/config.txt')
 
     model = return_net(config).to(device)
     model.load_state_dict(torch.load(path + '/{}th_model.pth'.format(tri_id)))
     model.eval()
 
-    root = '../data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
 
@@ -69,7 +69,7 @@ def calc_kldiv(a_vec, b_vec):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--path', type=str, default='../models/PPI_JKNet_GATConv_5layer_lstm_go/')
+parser.add_argument('--path', type=str, default='./models/PPI_JKNet_GATConv_5layer_lstm_go/')
 parser.add_argument('--tri_id', type=int, default=0)
 args = parser.parse_args()
 
@@ -78,7 +78,7 @@ config, data, model = load(args.path, args.tri_id)
 
 if config['dataset'] in ['Cora', 'CiteSeer', 'PubMed']:
     h, att = model(data.x, data.edge_index)
-    att_y = np.load('../result/homophily_score/Planetoid/{}_homo_score.npy'.format(config['dataset']))
+    att_y = np.load('./result/homophily_score/Planetoid/{}_homo_score.npy'.format(config['dataset']))
 
 elif config['dataset'] == 'PPI':
     train_loader, test_loader = data
@@ -93,7 +93,7 @@ elif config['dataset'] == 'PPI':
         out, att = model(data.x, data.edge_index)
         atts.append(att)
 
-    homo_file_list = list(glob.glob('../result/homophily_score/PPI/*.npy'))
+    homo_file_list = list(glob.glob('./result/homophily_score/PPI/*.npy'))
     atts_y = [np.load(file) for file in natsorted(homo_file_list)]
     att_y = np.concatenate(atts_y)
     att = torch.cat(atts, dim=0)
@@ -110,7 +110,7 @@ else: # Reddit
         h, att = model(data.x[n_id], adjs, batch_size)
         atts.append(att)
 
-    homo_file_list = list(glob.glob('../result/homophily_score/Reddit/*.npy'))
+    homo_file_list = list(glob.glob('./result/homophily_score/Reddit/*.npy'))
     atts_y = [np.load(file) for file in natsorted(homo_file_list)]
     att_y = np.concatenate(atts_y)
     att = torch.cat(atts, dim=0)
