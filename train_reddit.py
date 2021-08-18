@@ -32,15 +32,21 @@ def test(config, data, test_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.eval()
 
-    total_correct = 0
+    '''total_correct = 0
     for batch_size, n_id, adjs in test_loader:
         adjs = [adj.to(device) for adj in adjs]
         h, alpha = model(data.x[n_id], adjs, batch_size)
         prob_labels = F.log_softmax(h, dim=1)
         total_correct += int(prob_labels.argmax(dim=-1).eq(data.y[n_id[:batch_size]]).sum())
-    approx_acc = total_correct / int(data.test_mask.sum())
+    approx_acc = total_correct / int(data.test_mask.sum())'''
+
+    h, alpha = model.inference(data.x, test_loader)
+    y_true = data.y.unsqueeze(-1)
+    y_pred = h.argmax(dim=-1, keepdim=True)
+
+    test_acc = int(y_pred[data.test_mask].eq(y_true[data.test_mask]).sum()) / int(data.test_mask.sum())
     
-    return approx_acc
+    return test_acc
 
 
 def run(tri, config, data, train_loader, test_loader):
@@ -66,7 +72,8 @@ def load(cfg : DictConfig) -> None:
 def main():
     global config
     print(config)
-    dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    dir_ = './models/{}_{}_full_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    # dir_ = './models/test_sd'
     os.makedirs(dir_)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -79,14 +86,16 @@ def main():
     sizes_l = [25, 10, 10, 10, 10, 10]
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
                                    sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
-                                   num_workers=12) # sizes is sampling size when aggregates
-    test_loader  = NeighborSampler(data.edge_index, node_idx=data.test_mask,
-                                   sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
-                                   num_workers=12) # all nodes is considered
+                                   num_workers=6) # sizes is sampling size when aggregates
+
+    all_subgraph_loader = NeighborSampler(data.edge_index, node_idx=None,
+                                          sizes=[-1], batch_size=1024, shuffle=False,
+                                          num_workers=6) # all nodes is considered
 
     test_acc = np.zeros(config['n_tri'])
     for tri in range(config['n_tri']):
-        test_acc[tri], model = run(tri, config, data, train_loader, test_loader)
+        test_acc[tri], model = run(tri, config, data, train_loader, all_subgraph_loader)
+        print('{} test acc: {}'.format(config['att_mode'] ,test_acc[tri]))
         torch.save(model.state_dict(), dir_ + '/{}th_model.pth'.format(tri))
 
     save_conf(config, dir_ + '/config.txt')

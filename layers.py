@@ -59,7 +59,6 @@ class JumpingKnowledge(torch.nn.Module):
                 bidirectional=True,
                 batch_first=True)
             self.att = Linear(2 * ((num_layers * channels) // 2), 1)
-            self.weight = Parameter(torch.FloatTensor((num_layers * channels) // 2))
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -77,19 +76,16 @@ class JumpingKnowledge(torch.nn.Module):
             return torch.stack(xs, dim=-1).max(dim=-1)[0]
         elif self.mode == 'lstm':
             x = torch.stack(xs, dim=1)  # x (n, l, d)
-            # alpha (n, l, dl), _[0] (n, dl/2) for h and c
-            alpha, _ = self.lstm(x)
 
-            if(self.att_mode in ['sd', 'mx', 'sd+']):  # SD or MX
+            alpha, _ = self.lstm(x) # alpha (n, l, dl) dl/2 is hid_channels of lSTM
+
+            if(self.att_mode in ['sd', 'mx']):  # SD or MX
                 dim = alpha.size()[-1]
                 alpha_f, alpha_b = alpha[:, :, :dim//2], alpha[:, :, dim//2:]
 
                 sd = alpha_f * alpha_b
                 if(self.att_mode == 'sd'):  # SD
                     alpha = sd.sum(dim=-1) / math.sqrt(dim//2)
-                elif(self.att_mode == 'sd+'):
-                    sd = (sd * self.weight).sum(dim=-1)
-                    alpha = sd / math.sqrt(dim//2)
                 else:  # MX
                     alpha = self.att(alpha).squeeze(-1)
                     alpha = alpha * torch.sigmoid(sd.sum(dim=-1))
@@ -100,5 +96,3 @@ class JumpingKnowledge(torch.nn.Module):
             alpha = torch.softmax(alpha, dim=-1)
             # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
             return (x * alpha.unsqueeze(-1)).sum(dim=1), alpha
-
-

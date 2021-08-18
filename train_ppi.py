@@ -73,7 +73,8 @@ def load(cfg : DictConfig) -> None:
 def main():
     global config
     print(config)
-    dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    # dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
+    dir_ = './models/test_mx3'
     os.makedirs(dir_)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

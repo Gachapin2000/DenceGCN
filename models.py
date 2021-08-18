@@ -73,7 +73,7 @@ class JKNet_SAGEConv(nn.Module):
             x_alls.append(x_all)
 
         h, alpha = self.jk(x_alls)  # xs = [h1,h2,h3,...,hL], h is (n, d)
-        return h, alpha
+        return self.out_lin(h), alpha
 
 
 class JKNet_GCNConv(nn.Module):
