@@ -16,7 +16,7 @@ from layers import JumpingKnowledge, GeneralConv
 
 class JKNet_SAGEConv(nn.Module):
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
-                 dropout, mode, att_mode):
+                 dropout, mode, att_mode, att_temparature):
         super(JKNet_SAGEConv, self).__init__()
         self.dropout = dropout
         self.n_layer = n_layer
@@ -28,7 +28,7 @@ class JKNet_SAGEConv(nn.Module):
 
         if(mode == 'lstm'):
             self.jk = JumpingKnowledge(
-                'lstm', att_mode, channels=n_hid, num_layers=n_layer)
+                'lstm', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
@@ -79,7 +79,7 @@ class JKNet_SAGEConv(nn.Module):
 class JKNet_GCNConv(nn.Module):
 
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
-                 dropout, mode, att_mode):
+                 dropout, mode, att_mode, att_temparature):
         super(JKNet_GCNConv, self).__init__()
         self.dropout = dropout
 
@@ -90,7 +90,7 @@ class JKNet_GCNConv(nn.Module):
 
         if(mode == 'lstm'):
             self.jk = JumpingKnowledge(
-                'lstm', att_mode, channels=n_hid, num_layers=n_layer)
+                'lstm', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
@@ -116,30 +116,26 @@ class JKNet_GCNConv(nn.Module):
 class JKNet_GATConv(nn.Module):
 
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
-                 dropout, mode, att_mode, n_head, iscat, isdense):
+                 dropout, mode, att_mode, att_temparature, n_head, iscat):
         super(JKNet_GATConv, self).__init__()
         self.dropout = dropout
-        self.isdense = isdense
 
         self.in_conv = GeneralConv(task, 'gat_conv', n_feat, n_hid,
                                    n_heads=[1, n_head],
                                    iscat=[False, iscat],
                                    dropout=self.dropout)
         
-        self.jks   = torch.nn.ModuleList()
         self.convs = torch.nn.ModuleList()
-        for idx in range(1, n_layer):
-            jk = JumpingKnowledge('lstm', att_mode, channels=n_hid*n_head, num_layers=idx)
+        for _ in range(1, n_layer):
             conv = GeneralConv(task, 'gat_conv', n_hid, n_hid,
                                n_heads=[n_head, n_head],
                                iscat=[iscat, iscat],
                                dropout=self.dropout)
-            self.jks.append(jk)
             self.convs.append(conv)
 
         if(mode == 'lstm'):
             self.jk = JumpingKnowledge(
-                'lstm', att_mode, channels=n_hid*n_head, num_layers=n_layer)
+                'lstm', att_mode, channels=n_hid*n_head, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
@@ -153,9 +149,7 @@ class JKNet_GATConv(nn.Module):
         x = F.dropout(F.relu(x), self.dropout, training=self.training)
 
         xs = [x]
-        for jk, conv in zip(self.jks, self.convs):
-            if self.isdense:
-                x, _, = jk(xs)
+        for conv in self.convs:
             x = conv(x, edge_index)
             x = F.dropout(F.relu(x), self.dropout, training=self.training)
             xs.append(x)
@@ -239,7 +233,8 @@ def return_net(args):
                              n_class=args['n_class'],
                              dropout=args['dropout'],
                              mode=args['jk_mode'],
-                             att_mode=args['att_mode'])
+                             att_mode=args['att_mode'],
+                             att_temparature=args['att_temparature'])
 
     elif args['model'] == 'JKNet_SAGEConv':
         return JKNet_SAGEConv(task=args['task'],
@@ -249,7 +244,8 @@ def return_net(args):
                               n_class=args['n_class'],
                               dropout=args['dropout'],
                               mode=args['jk_mode'],
-                              att_mode=args['att_mode'])
+                              att_mode=args['att_mode'],
+                              att_temparature=args['att_temparature'])
 
     elif args['model'] == 'JKNet_GATConv':
         return JKNet_GATConv(task=args['task'],
@@ -260,6 +256,6 @@ def return_net(args):
                              dropout=args['dropout'],
                              mode=args['jk_mode'],
                              att_mode=args['att_mode'],
+                             att_temparature=args['att_temparature'],
                              n_head=args['n_head'],
-                             iscat=args['iscat'],
-                             isdense=args['isdense'])
+                             iscat=args['iscat'])

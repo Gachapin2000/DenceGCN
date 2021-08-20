@@ -15,7 +15,10 @@ import torch.nn.functional as F
 from torch_geometric import utils
 from torch_geometric.utils.convert import to_networkx
 
-
+def log_params_from_omegaconf_dict(params):
+    for param_name, element in params.items():
+        mlflow.log_param(param_name, element)
+    
 def save_conf(config, file):
     with open(file, 'w') as w:
         for key in config.keys():

@@ -45,10 +45,11 @@ class GeneralConv(nn.Module):
 
 
 class JumpingKnowledge(torch.nn.Module):
-    def __init__(self, mode, att_mode=None, channels=None, num_layers=None):
+    def __init__(self, mode, att_mode=None, channels=None, num_layers=None, temparature=None):
         super(JumpingKnowledge, self).__init__()
         self.mode = mode.lower()
         self.att_mode = att_mode
+        self.att_temparature = temparature
         assert self.mode in ['cat', 'max', 'lstm']
 
         if mode == 'lstm':
@@ -59,6 +60,7 @@ class JumpingKnowledge(torch.nn.Module):
                 bidirectional=True,
                 batch_first=True)
             self.att = Linear(2 * ((num_layers * channels) // 2), 1)
+            # self.att = Linear(2 * channels, 1)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -67,32 +69,69 @@ class JumpingKnowledge(torch.nn.Module):
         if hasattr(self, 'att'):
             self.att.reset_parameters()
 
-    def forward(self, xs):
-        assert isinstance(xs, list) or isinstance(xs, tuple)
+    def forward(self, hs):
+        assert isinstance(hs, list) or isinstance(hs, tuple)
 
         if self.mode == 'cat':
-            return torch.cat(xs, dim=-1)
+            return torch.cat(hs, dim=-1)
         elif self.mode == 'max':
-            return torch.stack(xs, dim=-1).max(dim=-1)[0]
+            return torch.stack(hs, dim=-1).max(dim=-1)[0]
+            
         elif self.mode == 'lstm':
-            x = torch.stack(xs, dim=1)  # x (n, l, d)
+            h = torch.stack(hs, dim=1)  # h (n, L, d)
 
-            alpha, _ = self.lstm(x) # alpha (n, l, dl) dl/2 is hid_channels of lSTM
+            # query and key shape must be (n, L, hid). hid size is up to you.
+            alpha, _ = self.lstm(h) # alpha (n, L, dl) dl/2 is hid_channels of lSTM
+            out_channels = alpha.size()[-1]
+            query, key = alpha[:, :, :out_channels//2], alpha[:, :, out_channels//2:]
 
-            if(self.att_mode in ['sd', 'mx']):  # SD or MX
-                dim = alpha.size()[-1]
-                alpha_f, alpha_b = alpha[:, :, :dim//2], alpha[:, :, dim//2:]
+            '''query = h.clone()              # query's l-th row is h_i^l
+            key = torch.roll(query, -1, 1) # key's l-th row is h_i^(l+1)
+            query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]'''
 
-                sd = alpha_f * alpha_b
-                if(self.att_mode == 'sd'):  # SD
-                    alpha = sd.sum(dim=-1) / math.sqrt(dim//2)
-                else:  # MX
-                    alpha = self.att(alpha).squeeze(-1)
-                    alpha = alpha * torch.sigmoid(sd.sum(dim=-1))
+            '''query = h.clone() # query's l-th row is h_i^l
+            n_layers = h.size()[1]
+            key = query[:, -1, :].repeat(n_layers, 1, 1).permute(1,0,2) # key's all row is h_i^L'''
 
-            else:  # GO
-                alpha = self.att(alpha).squeeze(-1)
+            if(self.att_mode == 'dp'):  # DP
+                alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
 
-            alpha = torch.softmax(alpha, dim=-1)
-            # (n, l, d) * (n, l, 1) = (n, l, d), -> (n, d)
-            return (x * alpha.unsqueeze(-1)).sum(dim=1), alpha
+            elif(self.att_mode == 'ad'):  # AD
+                query_key = torch.cat([query, key], dim=-1)
+                alpha = self.att(query_key).squeeze(-1)
+            
+            else: # MX
+                query_key = torch.cat([query, key], dim=-1)
+                alpha_ad = self.att(query_key).squeeze(-1)
+                alpha = alpha_ad * torch.sigmoid((query * key).sum(dim=-1))
+
+            alpha = torch.softmax(alpha/self.att_temparature, dim=-1)
+            # (n, L, d) * (n, L, 1) = (n, L, d), -> (n, d)
+            return (h * alpha.unsqueeze(-1)).sum(dim=1), alpha
+
+
+'''def summarizer(h, mode='LSTM'):
+    if mode == 'LSTM'''
+
+
+class Matcher(nn.Module):
+    '''
+        Matching between a pair of nodes to conduct link prediction.
+        Use multi-head attention as matching model.
+    '''
+    
+    def __init__(self, n_hid, n_out, temperature = 0.1):
+        super(Matcher, self).__init__()
+        self.n_hid          = n_hid
+        self.linear    = nn.Linear(n_hid,  n_out)
+        self.sqrt_hd     = math.sqrt(n_out)
+        self.drop        = nn.Dropout(0.2)
+        self.cosine      = nn.CosineSimilarity(dim=1)
+        self.cache       = None
+        self.temperature = temperature
+    def forward(self, x, ty, use_norm = False):
+        tx = self.drop(self.linear(x))
+        if use_norm:
+            return self.cosine(tx, ty) / self.temperature
+        else:
+            return (tx * ty).sum(dim=-1) / self.sqrt_hd

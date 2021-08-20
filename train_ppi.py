@@ -1,3 +1,4 @@
+import enum
 import os
 import argparse
 import numpy as np
@@ -7,6 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score
 from torch_geometric.nn import models
 from tqdm import tqdm
+import mlflow
 
 import torchvision.transforms as transforms
 import torch
@@ -17,7 +19,7 @@ from torch_geometric.datasets import PPI
 from torch_geometric.data import DataLoader
 
 from models import return_net
-from utils import save_conf
+from utils import log_params_from_omegaconf_dict
 
 
 def train(epoch, config, loader, model, optimizer, device):
@@ -25,14 +27,16 @@ def train(epoch, config, loader, model, optimizer, device):
     model.train()
     criteria = torch.nn.BCEWithLogitsLoss()
 
-    for data in loader: # in [g1, g2, ..., g20]
+    num_batches = len(loader)
+    for batch_id, data in enumerate(loader): # in [g1, g2, ..., g20]
         data = data.to(device)
         optimizer.zero_grad()
         out, _ = model(data.x, data.edge_index)
         loss = criteria(out, data.y)
         loss.backward()
         optimizer.step()
-
+        mlflow.log_metric('loss', value=loss.item(), step=epoch*num_batches + batch_id)
+        
 
 @torch.no_grad()
 def test(config, loader, model, device):
@@ -62,23 +66,16 @@ def run(tri, config, data_loader, device):
         train(epoch, config, train_loader, model, optimizer, device)
     test_acc = test(config, test_loader, model, device)
     
-    return test_acc, model
+    return test_acc
 
 
 @hydra.main(config_path='conf', config_name='config')
-def load(cfg : DictConfig) -> None:
-    global config
+def main(cfg: DictConfig):
     config = cfg[cfg.key]
-
-def main():
-    global config
-    print(config)
-    # dir_ = './models/{}_{}_{}layer_{}_{}'.format(config['dataset'],config['model'],config['n_layer'],config['jk_mode'],config['att_mode'])
-    dir_ = './models/test_mx3'
-    os.makedirs(dir_)
+    mlflow_runname = cfg.mlflow.runname
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root = './data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    root = '~/Study/python/DenceGCN/data/{}_{}'.format(config['dataset'], config['pre_transform'])
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
@@ -90,17 +87,20 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
     data_loader = [train_loader, val_loader, test_loader]
 
-    test_acc = np.zeros(config['n_tri'])
-    for tri in range(config['n_tri']):
-        test_acc[tri], model = run(tri, config, data_loader, device)
-        torch.save(model.state_dict(), dir_ + '/{}th_model.pth'.format(tri))
+    mlflow.set_tracking_uri("http://127.0.0.1:5000")
+    mlflow.set_experiment(mlflow_runname)
+    with mlflow.start_run():
+        log_params_from_omegaconf_dict(config)
+        test_acc = np.zeros(config['n_tri'])
+        for tri in range(config['n_tri']):
+            test_acc[tri] = run(tri, config, data_loader, device)
+            mlflow.log_metric('acc', value=test_acc[tri], step=tri)
+        mlflow.log_metric('acc_mean', value=np.mean(test_acc))
+        mlflow.log_metric('acc_max', value=np.max(test_acc))
+        mlflow.log_metric('acc_min', value=np.min(test_acc))
+
+    return np.mean(test_acc)
     
-    save_conf(config, dir_ + '/config.txt')
-    with open(dir_ + '/acc.txt', 'w') as w:
-        w.write('whole test acc ({} tries) = {}'.format(config['n_tri'], test_acc))
-        w.write('\tave={:.3f} max={:.3f} min={:.3f}' \
-              .format(np.mean(test_acc), np.max(test_acc), np.min(test_acc)))
-        
+
 if __name__ == "__main__":
-    load()
     main()

@@ -1,21 +1,11 @@
 IFS_BACKUP=$IFS
 IFS=$'\n'
 
-ary=('python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_3layer_lstm_go --tri_id 1'
-     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_3layer_lstm_mx --tri_id 1'
-     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_3layer_lstm_sd --tri_id 3'
-     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_5layer_lstm_go --tri_id 3'
-     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_5layer_lstm_mx --tri_id 0'
-     'python3 ./debug/load_trained_model.py --path ./models/PPI_JKNet_GATConv_5layer_lstm_sd --tri_id 4'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_3layer_lstm_go --tri_id 0'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_3layer_lstm_mx --tri_id 4'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_3layer_lstm_sd --tri_id 3'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_4layer_lstm_go --tri_id 1'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_4layer_lstm_mx --tri_id 0'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_4layer_lstm_sd --tri_id 4'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_6layer_lstm_go --tri_id 0'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_6layer_lstm_mx --tri_id 1'
-     'python3 ./debug/load_trained_model.py --path ./models/Reddit_JKNet_SAGEConv_6layer_lstm_sd --tri_id 2')
+ary=("python3 train.py -m 'hydra.sweeper.n_trials=500' 'key=JKNet_Cora' 'mlflow.runname=JKNet_Cora' 'JKNet_Cora.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_Cora.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_Cora.dropout=choice(0.6,0.5,0.)' 'JKNet_Cora.n_layer=range(2,6)' 'JKNet_Cora.att_mode=choice('ad','mx','dp')' 'JKNet_Cora.att_temparature=interval(-1.,1.)'
+      python3 train.py -m 'hydra.sweeper.n_trials=500' 'key=JKNet_CiteSeer' 'mlflow.runname=JKNet_CiteSeer' 'JKNet_CiteSeer.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_Cora.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_CiteSeer.dropout=choice(0.6,0.5,0.)' 'JKNet_CiteSeer.n_layer=range(2,6)' 'JKNet_CiteSeer.att_mode=choice('ad','mx','dp')' 'JKNet_CiteSeer.att_temparature=interval(-1.,1.)'
+      python3 train.py -m 'hydra.sweeper.n_trials=100' 'key=JKNet_PubMed' 'mlflow.runname=JKNet_PubMed' 'JKNet_PubMed.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_PubMed.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_PubMed.dropout=choice(0.6,0.5,0.)' 'JKNet_PubMed.n_layer=range(2,6)' 'JKNet_PubMed.att_mode=choice('ad','mx','dp')' 'JKNet_PubMed.att_temparature=interval(-1.,1.)'
+      python3 train_ppi.py -m 'hydra.sweeper.n_trials=100' 'key=JKNet_PPI' 'mlflow.runname=JKNet_PPI' 'JKNet_PPI.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_PPI.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_PPI.dropout=choice(0.6,0.5,0.)' 'JKNet_PPI.n_layer=range(2,6)' 'JKNet_PPI.att_mode=choice('ad','mx','dp')' 'JKNet_PPI.att_temparature=interval(-1.,1.)'
+      python3 train_reddit.py -m 'hydra.sweeper.n_trials=100' 'key=JKNet_Reddit' 'mlflow.runname=JKNet_Reddit' 'JKNet_Reddit.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_Reddit.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_Reddit.dropout=choice(0.6,0.5,0.)' 'JKNet_Reddit.n_layer=range(2,6)' 'JKNet_Reddit.att_mode=choice('ad','mx','dp')' 'JKNet_Reddit.att_temparature=interval(-1.,1.)'")
 
 for STR in ${ary[@]}
 do
@@ -26,8 +16,8 @@ done >> "$1"
 
 
 # ----template----
-# Cora     python3 train.py key=JKNet_Cora JKNet_Cora.n_tri=10 JKNet_Cora.n_layer=5 JKNet_Cora.jk_mode=lstm JKNet_Cora.att_mode=go JKNet_Cora.pre_transform="HomophilyRank\(\)"
-# CiteSeer python3 train.py key=JKNet_CiteSeer JKNet_CiteSeer.n_tri=10 JKNet_CiteSeer.n_layer=5 JKNet_CiteSeer.jk_mode=lstm JKNet_CiteSeer.att_mode=go JKNet_CiteSeer.pre_transform="HomophilyRank\(\)"
-# PubMed   python3 train.py key=JKNet_PubMed JKNet_PubMed.n_tri=10 JKNet_PubMed.n_layer=5 JKNet_PubMed.jk_mode=lstm JKNet_PubMed.att_mode=go JKNet_PubMed.pre_transform="HomophilyRank\(\)"
-# PPI
-# Reddit   python3 train_reddit.py key=JKNet_Reddit JKNet_Reddit.n_tri=100 JKNet_Reddit.n_layer=4 JKNet_Reddit.att_mode=sd
+# Cora     python3 train.py -m 'hydra.sweeper.n_trials=500' 'key=JKNet_Cora' 'mlflow.runname=JKNet_Cora' 'JKNet_Cora.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_Cora.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_Cora.dropout=choice(0.6,0.5,0.)' 'JKNet_Cora.n_layer=range(2,6)' 'JKNet_Cora.att_mode=choice('ad','mx','dp')' 'JKNet_Cora.att_temparature=interval(-1.,1.)'
+# CiteSeer python3 train.py -m 'hydra.sweeper.n_trials=500' 'key=JKNet_CiteSeer' 'mlflow.runname=JKNet_CiteSeer' 'JKNet_CiteSeer.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_Cora.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_CiteSeer.dropout=choice(0.6,0.5,0.)' 'JKNet_CiteSeer.n_layer=range(2,6)' 'JKNet_CiteSeer.att_mode=choice('ad','mx','dp')' 'JKNet_CiteSeer.att_temparature=interval(-1.,1.)'
+# PubMed   python3 train.py -m 'hydra.sweeper.n_trials=100' 'key=JKNet_PubMed' 'mlflow.runname=JKNet_PubMed' 'JKNet_PubMed.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_PubMed.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_PubMed.dropout=choice(0.6,0.5,0.)' 'JKNet_PubMed.n_layer=range(2,6)' 'JKNet_PubMed.att_mode=choice('ad','mx','dp')' 'JKNet_PubMed.att_temparature=interval(-1.,1.)'
+# PPI      python3 train_ppi.py -m 'hydra.sweeper.n_trials=100' 'key=JKNet_PPI' 'mlflow.runname=JKNet_PPI' 'JKNet_PPI.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_PPI.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_PPI.dropout=choice(0.6,0.5,0.)' 'JKNet_PPI.n_layer=range(2,6)' 'JKNet_PPI.att_mode=choice('ad','mx','dp')' 'JKNet_PPI.att_temparature=interval(-1.,1.)'
+# Reddit   python3 train_reddit.py -m 'hydra.sweeper.n_trials=100' 'key=JKNet_Reddit' 'mlflow.runname=JKNet_Reddit' 'JKNet_Reddit.learning_rate=choice(0.01,0.005,0.001)' 'JKNet_Reddit.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'JKNet_Reddit.dropout=choice(0.6,0.5,0.)' 'JKNet_Reddit.n_layer=range(2,6)' 'JKNet_Reddit.att_mode=choice('ad','mx','dp')' 'JKNet_Reddit.att_temparature=interval(-1.,1.)'

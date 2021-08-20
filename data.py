@@ -67,6 +67,7 @@ class FiveUniqueNodes(InMemoryDataset):
         plt.savefig('toy_edge_index.png')
 
 
+
 class Planetoid(InMemoryDataset):
     url = 'https://github.com/kimiyoung/planetoid/raw/master/data'
 

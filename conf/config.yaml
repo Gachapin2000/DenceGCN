@@ -1,14 +1,25 @@
 key: JKNet_Cora
 
-# -------mlflow & hydra-------
+
+# -------hydra & mlflow & optuna-------
 mlflow: 
-  runname: sample
+  runname: test
+
+defaults:
+  - override hydra/sweeper: optuna
+
+hydra:
+  sweeper:
+    sampler:
+      _target_: optuna.samplers.TPESampler
+    direction: maximize
+    n_trials: 10
 
 
 # -------datasets-------
 Planetoid: &Planetoid
   task: transductive
-  pre_transform: HomophilyRank()
+  pre_transform: None
   split: public
   n_tri: 10
 
@@ -40,7 +51,7 @@ Reddit: &Reddit
   transform: None
   n_feat: 602
   n_class: 41
-  n_tri: 10
+  n_tri: 5
   epochs: 20 # override >> GNN
   learning_rate: 0.01
   weight_decay: 0.
@@ -63,7 +74,7 @@ PPI: &PPI
   transform: None
   n_feat: 50
   n_class: 121
-  n_tri: 10
+  n_tri: 5
   learning_rate: 0.005
   weight_decay: 0.    
   dropout: 0.
@@ -149,42 +160,37 @@ JKNet: &JKNet
   learning_rate: 0.005 # override >> GNN
   n_layer: 6
   n_hid: 16
+  jk_mode: lstm # [cat, max, lstm]
+  att_temparature: 1. # if set to 1, default attention of JKNet_lstm
 
 JKNet_Cora: &JKNet_Cora
   <<: [*Cora, *JKNet]
-  jk_mode: max
-  att_mode: go # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+  att_mode: ad # [ad, dp, mx]. this works iff jk_mode is lstm.
 
 JKNet_CiteSeer: &JKNet_CiteSeer
   <<: [*CiteSeer, *JKNet]
   n_layer: 1 # override >> JKNet
-  jk_mode: cat
-  att_mode: go # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+  att_mode: ad
 
 JKNet_PubMed: &JKNet_PubMed
   <<: [*PubMed, *JKNet]
-  jk_mode: max
-  att_mode: go # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+  att_mode: ad
   
 JKNet_Reddit: &JKNet_Reddit
   <<: [*Reddit, *JKNet]
   model: JKNet_SAGEConv # override >> JKNet
   n_layer: 2
   n_hid: 256
-  jk_mode: lstm
-  att_mode: go
-  isdense: False
+  att_mode: ad
 
 JKNet_PPI: &JKNet_PPI
   <<: [*PPI, *JKNet]
   model: JKNet_GATConv # override >> JKNet
-  n_layer: 2
+  n_layer: 5
   n_hid: 256
   n_head: 4
   iscat: True
-  jk_mode: lstm
-  att_mode: go
-  isdense: False
+  att_mode: ad
 
 JKNet_toy: &JKNet_toy
   <<: [*FiveUniqNodes, *JKNet]
@@ -193,7 +199,7 @@ JKNet_toy: &JKNet_toy
   n_hid: 2 # override >> JKNet
   n_layer: 3 # override >> JKNet
   jk_mode: lstm
-  att_mode: go # this works iff jk_mode is lstm, ['go', 'sd', 'mx']
+  att_mode: ad
 
 
 UniqGCN: &UniqGCN
@@ -220,7 +226,7 @@ UniqGCN_PPI: &UniqGCN_PPI
   n_head: 4
   iscat: True
   jk_mode: lstm
-  att_mode: go
+  att_mode: ad
 
 UniqGCN_toy: &UniqGCN_toy
   <<: [*FiveUniqNodes, *UniqGCN]
