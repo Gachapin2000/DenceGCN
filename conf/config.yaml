@@ -13,7 +13,52 @@ hydra:
     sampler:
       _target_: optuna.samplers.TPESampler
     direction: maximize
+    n_jobs: 1
     n_trials: 10
+    # search_space:
+    #   JKNet_PPI.learning_rate:
+    #     type: categorical
+    #     choices:
+    #     - 0.01
+    #     - 0.005
+    #     - 0.001
+    #   JKNet_PPI.weight_decay:
+    #     type: categorical
+    #     choices:
+    #     - 0.001
+    #     - 0.0005
+    #     - 0.0001
+    #     - 0.
+    #   JKNet_PPI.dropout:
+    #     type: categorical
+    #     choices:
+    #     - 0.6
+    #     - 0.5
+    #     - 0.
+    #   JKNet_PPI.n_layer:
+    #     type: categorical
+    #     choices:
+    #     - ?
+    #   JKNet_PPI.n_hid:
+    #     type: categorical
+    #     choices:
+    #     - ?
+    #   JKNet_PPI.jk_mode:
+    #     type: categorical
+    #     choices:
+    #     - cat
+    #     - max
+    #     - lstm
+    #   JKNet_PPI.att_mode:
+    #     type: categorical
+    #     choices:
+    #     - ad
+    #     - mx
+    #     - dp
+    #   JKNet_PPI.att_temparature:
+    #     type: categorical
+    #     choices:
+    #     - -0.6~0.6
 
 
 # -------datasets-------
@@ -161,36 +206,29 @@ JKNet: &JKNet
   n_layer: 6
   n_hid: 16
   jk_mode: lstm # [cat, max, lstm]
+  att_mode: ad # this works iff jk_mode is lstm, ['ad', 'dp', 'mx']
   att_temparature: 1. # if set to 1, default attention of JKNet_lstm
 
 JKNet_Cora: &JKNet_Cora
   <<: [*Cora, *JKNet]
-  att_mode: ad # [ad, dp, mx]. this works iff jk_mode is lstm.
 
 JKNet_CiteSeer: &JKNet_CiteSeer
   <<: [*CiteSeer, *JKNet]
-  n_layer: 1 # override >> JKNet
-  att_mode: ad
 
 JKNet_PubMed: &JKNet_PubMed
   <<: [*PubMed, *JKNet]
-  att_mode: ad
   
 JKNet_Reddit: &JKNet_Reddit
   <<: [*Reddit, *JKNet]
   model: JKNet_SAGEConv # override >> JKNet
-  n_layer: 2
-  n_hid: 256
-  att_mode: ad
+  n_hid: 128
 
 JKNet_PPI: &JKNet_PPI
   <<: [*PPI, *JKNet]
   model: JKNet_GATConv # override >> JKNet
-  n_layer: 5
   n_hid: 256
   n_head: 4
   iscat: True
-  att_mode: ad
 
 JKNet_toy: &JKNet_toy
   <<: [*FiveUniqNodes, *JKNet]
@@ -199,7 +237,7 @@ JKNet_toy: &JKNet_toy
   n_hid: 2 # override >> JKNet
   n_layer: 3 # override >> JKNet
   jk_mode: lstm
-  att_mode: ad
+  att_mode: ad # this works iff jk_mode is lstm, ['ad', 'dp', 'mx']
 
 
 UniqGCN: &UniqGCN

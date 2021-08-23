@@ -1,9 +1,11 @@
 import os
 import hydra
+from mlflow.models import model
 from omegaconf import DictConfig
 import numpy as np
 from tqdm import tqdm
 import mlflow
+from hydra import utils
 
 import torch
 import torch.nn.functional as F
@@ -64,7 +66,7 @@ def run(tri, config, data, train_loader, test_loader):
         train(epoch, config, data, train_loader, model, optimizer)
     test_acc = test(config, data, test_loader, model, optimizer)
 
-    return test_acc
+    return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -92,20 +94,21 @@ def main(cfg: DictConfig):
                                       sizes=[-1], batch_size=1024, shuffle=False,
                                       num_workers=6)
 
-    mlflow.set_tracking_uri("http://127.0.0.1:5000")
+    mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
     with mlflow.start_run():
         log_params_from_omegaconf_dict(config)
         test_acc = np.zeros(config['n_tri'])
         for tri in range(config['n_tri']):
-            test_acc[tri] = run(tri, config, data, train_loader, test_loader)
+            test_acc[tri], model = run(tri, config, data, train_loader, test_loader)
             mlflow.log_metric('acc', value=test_acc[tri], step=tri)
+            mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
         mlflow.log_metric('acc_mean', value=np.mean(test_acc))
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))
 
     return np.mean(test_acc)
         
-        
+
 if __name__ == "__main__":
     main()

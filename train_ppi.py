@@ -1,6 +1,7 @@
 import enum
 import os
 import argparse
+from mlflow.models import model
 import numpy as np
 import statistics
 import hydra
@@ -9,6 +10,7 @@ from sklearn.metrics import f1_score
 from torch_geometric.nn import models
 from tqdm import tqdm
 import mlflow
+from hydra import utils
 
 import torchvision.transforms as transforms
 import torch
@@ -36,7 +38,7 @@ def train(epoch, config, loader, model, optimizer, device):
         loss.backward()
         optimizer.step()
         mlflow.log_metric('loss', value=loss.item(), step=epoch*num_batches + batch_id)
-        
+
 
 @torch.no_grad()
 def test(config, loader, model, device):
@@ -66,7 +68,7 @@ def run(tri, config, data_loader, device):
         train(epoch, config, train_loader, model, optimizer, device)
     test_acc = test(config, test_loader, model, device)
     
-    return test_acc
+    return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -87,14 +89,15 @@ def main(cfg: DictConfig):
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
     data_loader = [train_loader, val_loader, test_loader]
 
-    mlflow.set_tracking_uri("http://127.0.0.1:5000")
+    mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
     with mlflow.start_run():
         log_params_from_omegaconf_dict(config)
         test_acc = np.zeros(config['n_tri'])
         for tri in range(config['n_tri']):
-            test_acc[tri] = run(tri, config, data_loader, device)
+            test_acc[tri], model = run(tri, config, data_loader, device)
             mlflow.log_metric('acc', value=test_acc[tri], step=tri)
+            mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
         mlflow.log_metric('acc_mean', value=np.mean(test_acc))
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))

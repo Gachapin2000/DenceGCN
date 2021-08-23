@@ -93,14 +93,14 @@ class JumpingKnowledge(torch.nn.Module):
             n_layers = h.size()[1]
             key = query[:, -1, :].repeat(n_layers, 1, 1).permute(1,0,2) # key's all row is h_i^L'''
 
-            if(self.att_mode == 'dp'):  # DP
+            if(self.att_mode == 'dp'):  # att_mode is DP
                 alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
 
-            elif(self.att_mode == 'ad'):  # AD
+            elif(self.att_mode == 'ad'):  # att_mode is AD
                 query_key = torch.cat([query, key], dim=-1)
                 alpha = self.att(query_key).squeeze(-1)
             
-            else: # MX
+            else: # att_mode is MX
                 query_key = torch.cat([query, key], dim=-1)
                 alpha_ad = self.att(query_key).squeeze(-1)
                 alpha = alpha_ad * torch.sigmoid((query * key).sum(dim=-1))
