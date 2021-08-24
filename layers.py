@@ -9,18 +9,23 @@ from tqdm import trange, tqdm
 from torch.nn import Module, Parameter, Linear, LSTM
 from torch.nn.parameter import Parameter
 
-from torch_geometric.nn import MessagePassing, GATConv, GCNConv, SAGEConv
+from torch_geometric.nn import MessagePassing, GATConv, GCNConv, SAGEConv, conv
 from torch_geometric.utils import add_self_loops, degree
 
 
 class GeneralConv(nn.Module):
-    def __init__(self, task, conv_name, in_channels, out_channels,
+    def __init__(self, task, conv_name, in_channels, out_channels, self_node,
                  n_heads=[1, 1], iscat=[False, False], dropout=0.):
         super(GeneralConv, self).__init__()
         self.task = task
 
         if conv_name == 'gcn_conv':
-            self.conv = GCNConv(in_channels, out_channels)
+            self.conv = GCNConv(in_channels, out_channels, add_self_loops=self_node)
+            if(self.task == 'inductive'):  # if transductive, we dont use linear
+                self.lin = nn.Linear(in_channels, out_channels)
+
+        elif conv_name == 'sage_conv':
+            self.conv = SAGEConv(in_channels, out_channels, root_weight=self_node)
             if(self.task == 'inductive'):  # if transductive, we dont use linear
                 self.lin = nn.Linear(in_channels, out_channels)
 
@@ -31,11 +36,13 @@ class GeneralConv(nn.Module):
                                 out_channels=out_channels,
                                 heads=n_heads[1],
                                 concat=iscat[1],
-                                dropout=dropout)
+                                dropout=dropout,
+                                add_self_loops=self_node)
             if self.task == 'inductive':  # if transductive, we dont use linear
                 if iscat[1]:
                     out_channels = out_channels * n_heads[1]
                 self.lin = nn.Linear(in_channels, out_channels)
+
 
     def forward(self, x, edge_index):
         if self.task == 'transductive':
@@ -48,11 +55,12 @@ class JumpingKnowledge(torch.nn.Module):
     def __init__(self, mode, att_mode=None, channels=None, num_layers=None, temparature=None):
         super(JumpingKnowledge, self).__init__()
         self.mode = mode.lower()
+        self.summary_mode = 'lstm'
         self.att_mode = att_mode
         self.att_temparature = temparature
-        assert self.mode in ['cat', 'max', 'lstm']
+        assert self.mode in ['cat', 'max', 'attention']
 
-        if mode == 'lstm':
+        if mode == 'attention':
             assert channels is not None, 'channels cannot be None for lstm'
             assert num_layers is not None, 'num_layers cannot be None for lstm'
             self.lstm = LSTM(
@@ -77,26 +85,31 @@ class JumpingKnowledge(torch.nn.Module):
         elif self.mode == 'max':
             return torch.stack(hs, dim=-1).max(dim=-1)[0]
             
-        elif self.mode == 'lstm':
-            h = torch.stack(hs, dim=1)  # h (n, L, d)
+        elif self.mode == 'attention':
+            h = torch.stack(hs, dim=1)  # h is (n, L, d).
 
-            # query and key shape must be (n, L, hid). hid size is up to you.
-            alpha, _ = self.lstm(h) # alpha (n, L, dl) dl/2 is hid_channels of lSTM
-            out_channels = alpha.size()[-1]
-            query, key = alpha[:, :, :out_channels//2], alpha[:, :, out_channels//2:]
+            # summary takes h as input, query and key vector as output
+            # query and key shape must be (n, L, hid). hid size depends on summary_mode
+            if self.summary_mode == 'vanilla':
+                query = h.clone() # query's l-th row is h_i^l
+                n_layers = h.size()[1]
+                key = query[:, -1, :].repeat(n_layers, 1, 1).permute(1,0,2) # key's all row is h_i^L
 
-            '''query = h.clone()              # query's l-th row is h_i^l
-            key = torch.roll(query, -1, 1) # key's l-th row is h_i^(l+1)
-            query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]'''
+            elif self.summary_mode == 'roll':
+                query = h.clone()              # query's l-th row is h_i^l
+                key = torch.roll(query, -1, 1) # key's l-th row is h_i^(l+1)
+                query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
 
-            '''query = h.clone() # query's l-th row is h_i^l
-            n_layers = h.size()[1]
-            key = query[:, -1, :].repeat(n_layers, 1, 1).permute(1,0,2) # key's all row is h_i^L'''
+            elif self.summary_mode == 'lstm':
+                alpha, _ = self.lstm(h) # alpha (n, L, dl). dl/2 is hid_channels of forward or backward LSTM
+                out_channels = alpha.size()[-1]
+                query, key = alpha[:, :, :out_channels//2], alpha[:, :, out_channels//2:]
 
-            if(self.att_mode == 'dp'):  # att_mode is DP
+
+            if self.att_mode == 'dp':  # att_mode is DP
                 alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
 
-            elif(self.att_mode == 'ad'):  # att_mode is AD
+            elif self.att_mode == 'ad':  # att_mode is AD
                 query_key = torch.cat([query, key], dim=-1)
                 alpha = self.att(query_key).squeeze(-1)
             
@@ -109,9 +122,6 @@ class JumpingKnowledge(torch.nn.Module):
             # (n, L, d) * (n, L, 1) = (n, L, d), -> (n, d)
             return (h * alpha.unsqueeze(-1)).sum(dim=1), alpha
 
-
-'''def summarizer(h, mode='LSTM'):
-    if mode == 'LSTM'''
 
 
 class Matcher(nn.Module):

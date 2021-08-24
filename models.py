@@ -16,25 +16,26 @@ from layers import JumpingKnowledge, GeneralConv
 
 class JKNet_SAGEConv(nn.Module):
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
-                 dropout, mode, att_mode, att_temparature):
+                 dropout, self_node, mode, att_mode, att_temparature):
         super(JKNet_SAGEConv, self).__init__()
         self.dropout = dropout
         self.n_layer = n_layer
 
+        # GeneralConv(task, 'gcn_conv', n_feat, n_hid)
         self.convs = nn.ModuleList()
-        self.convs.append(SAGEConv(n_feat, n_hid))
+        self.convs.append(GeneralConv(task, 'sage_conv', n_feat, n_hid, self_node))
         for _ in range(1, n_layer):
-            self.convs.append(SAGEConv(n_hid, n_hid))
+            self.convs.append(GeneralConv(task, 'sage_conv', n_feat, n_hid, self_node))
 
-        if(mode == 'lstm'):
+        if(mode == 'attention'):
             self.jk = JumpingKnowledge(
-                'lstm', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
+                'attention', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
         if mode == 'cat':
             self.out_lin = nn.Linear(n_hid*n_layer, n_class)
-        else:  # if mode == 'max' or 'lstm'
+        else:  # if mode == 'max' or 'attention'
             self.out_lin = nn.Linear(n_hid, n_class)
 
     def forward(self, x, adjs, batch_size):
@@ -79,24 +80,24 @@ class JKNet_SAGEConv(nn.Module):
 class JKNet_GCNConv(nn.Module):
 
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
-                 dropout, mode, att_mode, att_temparature):
+                 dropout, self_node, mode, att_mode, att_temparature):
         super(JKNet_GCNConv, self).__init__()
         self.dropout = dropout
 
-        self.in_conv = GeneralConv(task, 'gcn_conv', n_feat, n_hid)
+        self.in_conv = GeneralConv(task, 'gcn_conv', n_feat, n_hid, self_node)
         self.convs = nn.ModuleList()
         for _ in range(1, n_layer):
-            self.convs.append(GeneralConv(task, 'gcn_conv', n_hid, n_hid))
+            self.convs.append(GeneralConv(task, 'gcn_conv', n_hid, n_hid, self_node))
 
-        if(mode == 'lstm'):
+        if(mode == 'attention'):
             self.jk = JumpingKnowledge(
-                'lstm', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
+                'attention', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
         if mode == 'cat':
             self.out_lin = nn.Linear(n_hid*n_layer, n_class)
-        else:  # if mode == 'max' or 'lstm'
+        else:  # if mode == 'max' or 'attention'
             self.out_lin = nn.Linear(n_hid, n_class)
 
     def forward(self, x, edge_index):
@@ -116,32 +117,32 @@ class JKNet_GCNConv(nn.Module):
 class JKNet_GATConv(nn.Module):
 
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
-                 dropout, mode, att_mode, att_temparature, n_head, iscat):
+                 dropout, self_node, mode, att_mode, att_temparature, n_head, iscat):
         super(JKNet_GATConv, self).__init__()
         self.dropout = dropout
 
-        self.in_conv = GeneralConv(task, 'gat_conv', n_feat, n_hid,
+        self.in_conv = GeneralConv(task, 'gat_conv', n_feat, n_hid, self_node, 
                                    n_heads=[1, n_head],
                                    iscat=[False, iscat],
                                    dropout=self.dropout)
         
         self.convs = torch.nn.ModuleList()
         for _ in range(1, n_layer):
-            conv = GeneralConv(task, 'gat_conv', n_hid, n_hid,
+            conv = GeneralConv(task, 'gat_conv', n_hid, n_hid, self_node, 
                                n_heads=[n_head, n_head],
                                iscat=[iscat, iscat],
                                dropout=self.dropout)
             self.convs.append(conv)
 
-        if(mode == 'lstm'):
+        if(mode == 'attention'):
             self.jk = JumpingKnowledge(
-                'lstm', att_mode, channels=n_hid*n_head, num_layers=n_layer, temparature=att_temparature)
+                'attention', att_mode, channels=n_hid*n_head, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
             self.jk = JumpingKnowledge(mode)
 
         if mode == 'cat':
             self.out_lin = nn.Linear(n_hid*n_head*n_layer, n_class)
-        else:  # if mode == 'max' or 'lstm'
+        else:  # if mode == 'max' or 'attention'
             self.out_lin = nn.Linear(n_hid*n_head, n_class)
 
     def forward(self, x, edge_index):
@@ -232,6 +233,7 @@ def return_net(args):
                              n_layer=args['n_layer'],
                              n_class=args['n_class'],
                              dropout=args['dropout'],
+                             self_node=args['self_node'],
                              mode=args['jk_mode'],
                              att_mode=args['att_mode'],
                              att_temparature=args['att_temparature'])
@@ -243,6 +245,7 @@ def return_net(args):
                               n_layer=args['n_layer'],
                               n_class=args['n_class'],
                               dropout=args['dropout'],
+                              self_node=args['self_node'],
                               mode=args['jk_mode'],
                               att_mode=args['att_mode'],
                               att_temparature=args['att_temparature'])
@@ -254,6 +257,7 @@ def return_net(args):
                              n_layer=args['n_layer'],
                              n_class=args['n_class'],
                              dropout=args['dropout'],
+                             self_node=args['self_node'],
                              mode=args['jk_mode'],
                              att_mode=args['att_mode'],
                              att_temparature=args['att_temparature'],
