@@ -12,7 +12,6 @@ from torch.nn.parameter import Parameter
 from torch_geometric.nn import MessagePassing, GATConv, GCNConv, SAGEConv
 from torch_geometric.utils import add_self_loops, degree
 
-# bmain branch update
 
 class GeneralConv(nn.Module):
     def __init__(self, task, conv_name, in_channels, out_channels,
