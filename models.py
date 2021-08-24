@@ -20,7 +20,6 @@ class JKNet_SAGEConv(nn.Module):
         super(JKNet_SAGEConv, self).__init__()
         self.dropout = dropout
         self.n_layer = n_layer
-        aaaaa
         # GeneralConv(task, 'gcn_conv', n_feat, n_hid)
         self.convs = nn.ModuleList()
         self.convs.append(GeneralConv(task, 'sage_conv', n_feat, n_hid, self_node))

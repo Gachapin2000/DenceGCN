@@ -44,7 +44,7 @@ def test(config, data, test_loader, model, optimizer):
             prob_labels = F.log_softmax(h, dim=1)
             total_correct += int(prob_labels.argmax(dim=-1).eq(data.y[n_id[:batch_size]]).sum())
         test_acc = total_correct / int(data.test_mask.sum())
-aaa
+
     else: # full aggregate
         h, alpha = model.inference(data.x, test_loader)
         y_true = data.y.unsqueeze(-1)
