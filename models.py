@@ -20,14 +20,14 @@ class JKNet_SAGEConv(nn.Module):
         super(JKNet_SAGEConv, self).__init__()
         self.dropout = dropout
         self.n_layer = n_layer
-
+        aaaaa
         # GeneralConv(task, 'gcn_conv', n_feat, n_hid)
         self.convs = nn.ModuleList()
         self.convs.append(GeneralConv(task, 'sage_conv', n_feat, n_hid, self_node))
         for _ in range(1, n_layer):
             self.convs.append(GeneralConv(task, 'sage_conv', n_feat, n_hid, self_node))
 
-        if(mode == 'attention'):aaa
+        if(mode == 'attention'):
             self.jk = JumpingKnowledge(
                 'attention', att_mode, channels=n_hid, num_layers=n_layer, temparature=att_temparature)
         else:  # if mode == 'cat' or 'max'
