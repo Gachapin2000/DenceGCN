@@ -115,9 +115,9 @@ class JKNet_GCNConv(nn.Module):
 
 class JKNet_GATConv(nn.Module):
 
-    print('sub branch')
     def __init__(self, task, n_feat, n_hid, n_layer, n_class,
                  dropout, self_node, mode, att_mode, att_temparature, n_head, iscat):
+        print('sub branch')
         super(JKNet_GATConv, self).__init__()
         self.dropout = dropout
 
