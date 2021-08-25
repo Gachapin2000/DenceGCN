@@ -25,7 +25,7 @@ class GeneralConv(nn.Module):
                 self.lin = nn.Linear(in_channels, out_channels)
 
         elif conv_name == 'sage_conv':
-            self.conv = SAGEConv(in_channels, out_channels, root_weight=self_node)
+            self.conv = SAGEConv(in_channels, out_channels)
             if(self.task == 'inductive'):  # if transductive, we dont use linear
                 self.lin = nn.Linear(in_channels, out_channels)
 
@@ -51,76 +51,65 @@ class GeneralConv(nn.Module):
             return self.conv(x, edge_index) + self.lin(x)
 
 
-class JumpingKnowledge(torch.nn.Module):
-    def __init__(self, mode, att_mode=None, channels=None, num_layers=None, temparature=None):
-        super(JumpingKnowledge, self).__init__()
-        self.mode = mode.lower()
-        self.summary_mode = 'lstm'
+class AttentionSummarize(torch.nn.Module):
+    def __init__(self, summary_mode, att_mode, channels, num_layers, temparature):
+        super(AttentionSummarize, self).__init__()
+        self.summary_mode = summary_mode
         self.att_mode = att_mode
         self.att_temparature = temparature
-        assert self.mode in ['cat', 'max', 'attention']
+        
+        if self.summary_mode == 'lstm':
+            out_channels_of_bi_lstm = (num_layers * channels) // 2
+            self.lstm = LSTM(channels, out_channels_of_bi_lstm,
+                             bidirectional=True, batch_first=True)
+            self.att = Linear(2*out_channels_of_bi_lstm, 1)
 
-        if mode == 'attention':
-            assert channels is not None, 'channels cannot be None for lstm'
-            assert num_layers is not None, 'num_layers cannot be None for lstm'
-            self.lstm = LSTM(
-                channels, (num_layers * channels) // 2,
-                bidirectional=True,
-                batch_first=True)
-            self.att = Linear(2 * ((num_layers * channels) // 2), 1)
-            # self.att = Linear(2 * channels, 1)
+        else: # if self.summary_mode == 'vanilla' or 'roll'
+            self.att = Linear(2 * channels, 1)
+
         self.reset_parameters()
 
     def reset_parameters(self):
-        if hasattr(self, 'lstm'):
-            self.lstm.reset_parameters()
-        if hasattr(self, 'att'):
-            self.att.reset_parameters()
+        self.lstm.reset_parameters()
+        self.att.reset_parameters()
 
     def forward(self, hs):
         assert isinstance(hs, list) or isinstance(hs, tuple)
+        h = torch.stack(hs, dim=1)  # h is (n, L, d).
 
-        if self.mode == 'cat':
-            return torch.cat(hs, dim=-1)
-        elif self.mode == 'max':
-            return torch.stack(hs, dim=-1).max(dim=-1)[0]
+        # summary takes h as input, query and key vector as output
+        if self.summary_mode == 'vanilla':
+            query = h.clone() # query's l-th row is h_i^l
+            n_layers = h.size()[1]
+            key = query[:, -1, :].repeat(n_layers, 1, 1).permute(1,0,2) # key's all row is h_i^L
+
+        elif self.summary_mode == 'roll':
+            query = h.clone() # query's l-th row is h_i^l
+            key = torch.roll(query, -1, 1) # key's l-th row is h_i^(l+1)
+            query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
+
+        elif self.summary_mode == 'lstm':
+            alpha, _ = self.lstm(h) # alpha (n, L, dL). dL/2 is hid_channels of forward or backward LSTM
+            out_channels = alpha.size()[-1]
+            query, key = alpha[:, :, :out_channels//2], alpha[:, :, out_channels//2:]
+
+        
+        # attention takes query and key as input, alpha as output
+        if self.att_mode == 'dp':
+            alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
+
+        elif self.att_mode == 'ad':
+            query_key = torch.cat([query, key], dim=-1)
+            alpha = self.att(query_key).squeeze(-1)
             
-        elif self.mode == 'attention':
-            h = torch.stack(hs, dim=1)  # h is (n, L, d).
+        elif self.att_mode == 'mx': 
+            query_key = torch.cat([query, key], dim=-1)
+            alpha_ad = self.att(query_key).squeeze(-1)
+            alpha = alpha_ad * torch.sigmoid((query * key).sum(dim=-1))
 
-            # summary takes h as input, query and key vector as output
-            # query and key shape must be (n, L, hid). hid size depends on summary_mode
-            if self.summary_mode == 'vanilla':
-                query = h.clone() # query's l-th row is h_i^l
-                n_layers = h.size()[1]
-                key = query[:, -1, :].repeat(n_layers, 1, 1).permute(1,0,2) # key's all row is h_i^L
+        alpha = torch.softmax(alpha/self.att_temparature, dim=-1)
 
-            elif self.summary_mode == 'roll':
-                query = h.clone()              # query's l-th row is h_i^l
-                key = torch.roll(query, -1, 1) # key's l-th row is h_i^(l+1)
-                query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
-
-            elif self.summary_mode == 'lstm':
-                alpha, _ = self.lstm(h) # alpha (n, L, dl). dl/2 is hid_channels of forward or backward LSTM
-                out_channels = alpha.size()[-1]
-                query, key = alpha[:, :, :out_channels//2], alpha[:, :, out_channels//2:]
-
-
-            if self.att_mode == 'dp':  # att_mode is DP
-                alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
-
-            elif self.att_mode == 'ad':  # att_mode is AD
-                query_key = torch.cat([query, key], dim=-1)
-                alpha = self.att(query_key).squeeze(-1)
-            
-            else: # att_mode is MX
-                query_key = torch.cat([query, key], dim=-1)
-                alpha_ad = self.att(query_key).squeeze(-1)
-                alpha = alpha_ad * torch.sigmoid((query * key).sum(dim=-1))
-
-            alpha = torch.softmax(alpha/self.att_temparature, dim=-1)
-            # (n, L, d) * (n, L, 1) = (n, L, d), -> (n, d)
-            return (h * alpha.unsqueeze(-1)).sum(dim=1), alpha
+        return (h * alpha.unsqueeze(-1)).sum(dim=1), alpha # h_i = \sum_{l} h_i^l * alpha_i^l
 
 
 

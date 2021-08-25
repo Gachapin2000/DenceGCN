@@ -77,17 +77,17 @@ def run(tri, cfg, data, run_info, seed=None):
     return test_acc, model
 
 
-@hydra.main(cfg_path='conf', cfg_name='cfg')
+@hydra.main(config_path='conf', config_name='config')
 def main(cfg: DictConfig):
-    cfg = cfg[cfg.key]
     mlflow_runname = cfg.mlflow.runname
+    cfg = cfg[cfg.key]
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
     dataset = Planetoid(root          = root.lower(),
                         name          = cfg['dataset'],
                         seed          = 0,
-                        split         = cfg['split'], 
+                        split         = cfg['split'],
                         transform     = eval(cfg['transform']),
                         pre_transform = eval(cfg['pre_transform']))
     data = dataset[0].to(device)
@@ -110,6 +110,3 @@ def main(cfg: DictConfig):
 
 if __name__ == "__main__":
     main()
-
-
-# mlflow.active_run().info.artifact_uri

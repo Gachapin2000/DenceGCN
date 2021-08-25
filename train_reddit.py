@@ -16,7 +16,7 @@ from torch_geometric.nn import SAGEConv
 from models import return_net
 from utils import log_params_from_omegaconf_dict
 
-def train(epoch, config, data, train_loader, model, optimizer):
+def train(epoch, cfg, data, train_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.train()
 
@@ -32,11 +32,11 @@ def train(epoch, config, data, train_loader, model, optimizer):
         mlflow.log_metric('loss', value=loss.item(), step=epoch*num_batches + batch_id)
 
 @torch.no_grad()
-def test(config, data, test_loader, model, optimizer):
+def test(cfg, data, test_loader, model, optimizer):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.eval()
 
-    if config['n_layer'] >= 3: # partial aggregate
+    if cfg['n_layer'] >= 3: # partial aggregate
         total_correct = 0
         for batch_size, n_id, adjs in test_loader:
             adjs = [adj.to(device) for adj in adjs]
@@ -54,28 +54,28 @@ def test(config, data, test_loader, model, optimizer):
     return test_acc
 
 
-def run(tri, config, data, train_loader, test_loader):
+def run(tri, cfg, data, train_loader, test_loader):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    model = return_net(config).to(device)
+    model = return_net(cfg).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
-                                 lr           = config['learning_rate'], 
-                                 weight_decay = config['weight_decay'])
+                                 lr           = cfg['learning_rate'], 
+                                 weight_decay = cfg['weight_decay'])
     
-    for epoch in tqdm(range(1, config['epochs'])):
-        train(epoch, config, data, train_loader, model, optimizer)
-    test_acc = test(config, data, test_loader, model, optimizer)
+    for epoch in tqdm(range(1, cfg['epochs'])):
+        train(epoch, cfg, data, train_loader, model, optimizer)
+    test_acc = test(cfg, data, test_loader, model, optimizer)
 
     return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
 def main(cfg: DictConfig):
-    config = cfg[cfg.key]
     mlflow_runname = cfg.mlflow.runname
+    cfg = cfg[cfg.key]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root = '~/Study/python/DenceGCN/data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
     dataset = Reddit(root=root.lower())
     data = dataset[0].to(device)
 
@@ -83,11 +83,11 @@ def main(cfg: DictConfig):
     torch.cuda.manual_seed(0)
     sizes_l = [25, 10, 10, 10, 10, 10] # sampling size of each layer when aggregates
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
-                                   sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
+                                   sizes=sizes_l[:cfg['n_layer']], batch_size=1024, shuffle=False,
                                    num_workers=6) 
-    if config['n_layer'] >= 3: # partial aggregate due to gpu memory constraints
+    if cfg['n_layer'] >= 3: # partial aggregate due to gpu memory constraints
         test_loader  = NeighborSampler(data.edge_index, node_idx=data.test_mask,
-                                       sizes=sizes_l[:config['n_layer']], batch_size=1024, shuffle=False,
+                                       sizes=sizes_l[:cfg['n_layer']], batch_size=1024, shuffle=False,
                                        num_workers=6)
     else: # if n_layer <=2, full aggregate
         test_loader = NeighborSampler(data.edge_index, node_idx=None,
@@ -97,10 +97,10 @@ def main(cfg: DictConfig):
     mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
     with mlflow.start_run():
-        log_params_from_omegaconf_dict(config)
-        test_acc = np.zeros(config['n_tri'])
-        for tri in range(config['n_tri']):
-            test_acc[tri], model = run(tri, config, data, train_loader, test_loader)
+        log_params_from_omegaconf_dict(cfg)
+        test_acc = np.zeros(cfg['n_tri'])
+        for tri in range(cfg['n_tri']):
+            test_acc[tri], model = run(tri, cfg, data, train_loader, test_loader)
             mlflow.log_metric('acc', value=test_acc[tri], step=tri)
             mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
         mlflow.log_metric('acc_mean', value=np.mean(test_acc))

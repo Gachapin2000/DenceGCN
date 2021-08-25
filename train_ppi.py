@@ -24,7 +24,7 @@ from models import return_net
 from utils import log_params_from_omegaconf_dict
 
 
-def train(epoch, config, loader, model, optimizer, device):
+def train(epoch, cfg, loader, model, optimizer, device):
     # train
     model.train()
     criteria = torch.nn.BCEWithLogitsLoss()
@@ -41,7 +41,7 @@ def train(epoch, config, loader, model, optimizer, device):
 
 
 @torch.no_grad()
-def test(config, loader, model, device):
+def test(cfg, loader, model, device):
     model.eval()
 
     ys, preds = [], []
@@ -56,28 +56,28 @@ def test(config, loader, model, device):
     return f1_score(y, pred, average='micro') if pred.sum() > 0 else 0
 
 
-def run(tri, config, data_loader, device):
+def run(tri, cfg, data_loader, device):
     train_loader, val_loader, test_loader = data_loader
 
-    model = return_net(config).to(device)
+    model = return_net(cfg).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
-                                 lr           = config['learning_rate'], 
-                                 weight_decay = config['weight_decay'])
+                                 lr           = cfg['learning_rate'], 
+                                 weight_decay = cfg['weight_decay'])
 
-    for epoch in tqdm(range(1, config['epochs'])):
-        train(epoch, config, train_loader, model, optimizer, device)
-    test_acc = test(config, test_loader, model, device)
+    for epoch in tqdm(range(1, cfg['epochs'])):
+        train(epoch, cfg, train_loader, model, optimizer, device)
+    test_acc = test(cfg, test_loader, model, device)
     
     return test_acc, model
 
 
 @hydra.main(config_path='conf', config_name='config')
 def main(cfg: DictConfig):
-    config = cfg[cfg.key]
     mlflow_runname = cfg.mlflow.runname
+    cfg = cfg[cfg.key]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root = '~/Study/python/DenceGCN/data/{}_{}'.format(config['dataset'], config['pre_transform'])
+    root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
@@ -92,10 +92,10 @@ def main(cfg: DictConfig):
     mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
     with mlflow.start_run():
-        log_params_from_omegaconf_dict(config)
-        test_acc = np.zeros(config['n_tri'])
-        for tri in range(config['n_tri']):
-            test_acc[tri], model = run(tri, config, data_loader, device)
+        log_params_from_omegaconf_dict(cfg)
+        test_acc = np.zeros(cfg['n_tri'])
+        for tri in range(cfg['n_tri']):
+            test_acc[tri], model = run(tri, cfg, data_loader, device)
             mlflow.log_metric('acc', value=test_acc[tri], step=tri)
             mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
         mlflow.log_metric('acc_mean', value=np.mean(test_acc))
