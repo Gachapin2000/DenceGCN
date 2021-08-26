@@ -1,4 +1,4 @@
-key: JKNet_Cora
+key: AttGNN_Cora
 
 
 # -------hydra & mlflow & optuna-------
@@ -16,46 +16,46 @@ hydra:
     n_jobs: 1
     n_trials: 10
     # search_space:
-    #   JKNet_PPI.learning_rate:
+    #   AttGNN_PPI.learning_rate:
     #     type: categorical
     #     choices:
     #     - 0.01
     #     - 0.005
     #     - 0.001
-    #   JKNet_PPI.weight_decay:
+    #   AttGNN_PPI.weight_decay:
     #     type: categorical
     #     choices:
     #     - 0.001
     #     - 0.0005
     #     - 0.0001
     #     - 0.
-    #   JKNet_PPI.dropout:
+    #   AttGNN_PPI.dropout:
     #     type: categorical
     #     choices:
     #     - 0.6
     #     - 0.5
     #     - 0.
-    #   JKNet_PPI.n_layer:
+    #   AttGNN_PPI.n_layer:
     #     type: categorical
     #     choices:
     #     - ?
-    #   JKNet_PPI.n_hid:
+    #   AttGNN_PPI.n_hid:
     #     type: categorical
     #     choices:
     #     - ?
-    #   JKNet_PPI.jk_mode:
+    #   AttGNN_PPI.jk_mode:
     #     type: categorical
     #     choices:
     #     - cat
     #     - max
     #     - lstm
-    #   JKNet_PPI.att_mode:
+    #   AttGNN_PPI.att_mode:
     #     type: categorical
     #     choices:
     #     - ad
     #     - mx
     #     - dp
-    #   JKNet_PPI.att_temparature:
+    #   AttGNN_PPI.att_temparature:
     #     type: categorical
     #     choices:
     #     - -0.6~0.6
@@ -199,43 +199,47 @@ GATNet_toy: &GATNet_toy
   iscat:  [False,False,False,False] # override >> GATNet
 
 
-JKNet: &JKNet
+AttGNN: &AttGNN
   <<: *GNN
-  model: JKNet_GCNConv
+  model: AttGNN
   learning_rate: 0.005 # override >> GNN
   n_layer: 6
   n_hid: 16
-  jk_mode: lstm # [cat, max, lstm]
-  att_mode: ad # this works iff jk_mode is lstm, ['ad', 'dp', 'mx']
-  att_temparature: 1. # if set to 1, default attention of JKNet_lstm
+  self_node: True
+  summary_mode: lstm # [vanilla, roll, lstm]
+  att_mode: ad # this works iff jk_mode is lstm, [ad, dp, mx]
+  att_temparature: 1. # if set to 1, default attention of Jumping_Knowledge
 
-JKNet_Cora: &JKNet_Cora
-  <<: [*Cora, *JKNet]
+AttGNN_Cora: &AttGNN_Cora
+  <<: [*Cora, *AttGNN]
+  base_gnn: GCN
 
-JKNet_CiteSeer: &JKNet_CiteSeer
-  <<: [*CiteSeer, *JKNet]
+AttGNN_CiteSeer: &AttGNN_CiteSeer
+  <<: [*CiteSeer, *AttGNN]
+  base_gnn: GCN
 
-JKNet_PubMed: &JKNet_PubMed
-  <<: [*PubMed, *JKNet]
+AttGNN_PubMed: &AttGNN_PubMed
+  <<: [*PubMed, *AttGNN]
+  base_gnn: GCN
   
-JKNet_Reddit: &JKNet_Reddit
-  <<: [*Reddit, *JKNet]
-  model: JKNet_SAGEConv # override >> JKNet
-  n_hid: 128
+AttGNN_Reddit: &AttGNN_Reddit
+  <<: [*Reddit, *AttGNN]
+  base_gnn: SAGE
+  n_hid: 128 # override >> AttGNN
 
-JKNet_PPI: &JKNet_PPI
-  <<: [*PPI, *JKNet]
-  model: JKNet_GATConv # override >> JKNet
-  n_hid: 256
+AttGNN_PPI: &AttGNN_PPI
+  <<: [*PPI, *AttGNN]
+  base_gnn: GAT
+  n_hid: 128 # override >> AttGNN
   n_head: 4
   iscat: True
 
-JKNet_toy: &JKNet_toy
-  <<: [*FiveUniqNodes, *JKNet]
-  learning_rate: 0.01 # override >> JKNet
+AttGNN_toy: &AttGNN_toy
+  <<: [*FiveUniqNodes, *AttGNN]
+  learning_rate: 0.01 # override >> AttGNN
   dropout: 0.2
-  n_hid: 2 # override >> JKNet
-  n_layer: 3 # override >> JKNet
+  n_hid: 2 # override >> AttGNN
+  n_layer: 3 # override >> AttGNN
   jk_mode: lstm
   att_mode: ad # this works iff jk_mode is lstm, ['ad', 'dp', 'mx']
 
