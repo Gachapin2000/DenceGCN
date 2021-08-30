@@ -62,6 +62,7 @@ def run(tri, cfg, data, train_loader, test_loader):
                                  lr           = cfg['learning_rate'], 
                                  weight_decay = cfg['weight_decay'])
     
+    
     for epoch in tqdm(range(1, cfg['epochs'])):
         train(epoch, cfg, data, train_loader, model, optimizer)
     test_acc = test(cfg, data, test_loader, model, optimizer)
@@ -84,15 +85,15 @@ def main(cfg: DictConfig):
     sizes_l = [25, 10, 10, 10, 10, 10] # sampling size of each layer when aggregates
     train_loader = NeighborSampler(data.edge_index, node_idx=data.train_mask,
                                    sizes=sizes_l[:cfg['n_layer']], batch_size=1024, shuffle=False,
-                                   num_workers=6) 
+                                   num_workers=0) 
     if cfg['n_layer'] >= 3: # partial aggregate due to gpu memory constraints
         test_loader  = NeighborSampler(data.edge_index, node_idx=data.test_mask,
                                        sizes=sizes_l[:cfg['n_layer']], batch_size=1024, shuffle=False,
-                                       num_workers=6)
+                                       num_workers=0)
     else: # if n_layer <=2, full aggregate
         test_loader = NeighborSampler(data.edge_index, node_idx=None,
                                       sizes=[-1], batch_size=1024, shuffle=False,
-                                      num_workers=6)
+                                      num_workers=0)
 
     mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
@@ -107,7 +108,7 @@ def main(cfg: DictConfig):
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))
 
-    return np.mean(test_acc)
+        return np.mean(test_acc)
         
 
 if __name__ == "__main__":

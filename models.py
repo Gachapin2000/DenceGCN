@@ -29,7 +29,8 @@ class AttGNN_GCNConv(nn.Module):
                                       att_mode     = cfg.att_mode, 
                                       channels     = cfg.n_hid, 
                                       num_layers   = cfg.n_layer, 
-                                      temparature  = cfg.att_temparature)
+                                      temparature  = cfg.att_temparature,
+                                      learn_t      = cfg.learn_temparature)
         self.out_lin = nn.Linear(cfg.n_hid, cfg.n_class)
 
     def forward(self, x, edge_index):
@@ -58,7 +59,8 @@ class AttGNN_SAGEConv(nn.Module):
                                       att_mode     = cfg.att_mode, 
                                       channels     = cfg.n_hid, 
                                       num_layers   = cfg.n_layer, 
-                                      temparature  = cfg.att_temparature)
+                                      temparature  = cfg.att_temparature,
+                                      learn_t      = cfg.learn_temparature)
         self.out_lin = nn.Linear(cfg.n_hid, cfg.n_class)
 
     def forward(self, x, adjs, batch_size):
@@ -93,7 +95,7 @@ class AttGNN_SAGEConv(nn.Module):
             x_all = torch.cat(xs, dim=0)
             x_alls.append(x_all)
 
-        h, alpha = self.jk(x_alls)  # hs = [h1,h2,h3,...,hL], h is (n, d)
+        h, alpha = self.att(x_alls)  # hs = [h1,h2,h3,...,hL], h is (n, d)
         return self.out_lin(h), alpha
 
 
@@ -120,7 +122,8 @@ class AttGNN_GATConv(nn.Module):
                                       att_mode     = cfg.att_mode, 
                                       channels     = cfg.n_hid * cfg.n_head,
                                       num_layers   = cfg.n_layer, 
-                                      temparature  = cfg.att_temparature)
+                                      temparature  = cfg.att_temparature,
+                                      learn_t      = cfg.learn_temparature)
         self.out_lin = nn.Linear(cfg.n_hid * cfg.n_head, cfg.n_class)
 
     def forward(self, x, edge_index):

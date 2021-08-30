@@ -18,7 +18,8 @@ import torch.nn.functional as F
 from torch_scatter import scatter
 import torch_geometric.transforms as T
 from torch_geometric.datasets import PPI
-from torch_geometric.data import DataLoader
+from torch_geometric.data import RandomNodeSampler
+from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
 from models import return_net
 from utils import log_params_from_omegaconf_dict
@@ -41,32 +42,37 @@ def train(epoch, cfg, loader, model, optimizer, device):
 
 
 @torch.no_grad()
-def test(cfg, loader, model, device):
+def test(cfg, loader, model, evaluator, device):
     model.eval()
 
     ys, preds = [], []
     for data in loader: # only one graph (=g1+g2)
         data = data.to(device)
-        ys.append(data.y)
         out, alpha = model(data.x, data.edge_index)
-        preds.append((out > 0).float().cpu())
+        mask = data['test_mask']
+        ys.append(data.y[mask].cpu())
+        preds.append(out[mask].cpu())
 
-    y    = torch.cat(ys, dim=0).to('cpu').detach().numpy().copy()
-    pred = torch.cat(preds, dim=0).to('cpu').detach().numpy().copy()
-    return f1_score(y, pred, average='micro') if pred.sum() > 0 else 0
+    test_rocauc = evaluator.eval({
+        'y_true': torch.cat(ys, dim=0),
+        'y_pred': torch.cat(preds, dim=0),
+    })['rocauc']
+
+    return test_rocauc
 
 
 def run(tri, cfg, data_loader, device):
-    train_loader, val_loader, test_loader = data_loader
+    train_loader, test_loader = data_loader
 
     model = return_net(cfg).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
                                  lr           = cfg['learning_rate'], 
                                  weight_decay = cfg['weight_decay'])
+    evaluator = Evaluator('ogbn-proteins')
 
     for epoch in tqdm(range(1, cfg['epochs'])):
         train(epoch, cfg, train_loader, model, optimizer, device)
-    test_acc = test(cfg, test_loader, model, device)
+    test_acc = test(cfg, test_loader, model, evaluator, device)
     
     return test_acc, model
 
@@ -75,20 +81,33 @@ def run(tri, cfg, data_loader, device):
 def main(cfg: DictConfig):
     mlflow_runname = cfg.mlflow.runname
     cfg = cfg[cfg.key]
-    print(cfg)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
-    train_dataset = PPI(root.lower(), split='train')
-    val_dataset   = PPI(root.lower(), split='val')
-    test_dataset  = PPI(root.lower(), split='test')
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
-    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
-    data_loader = [train_loader, val_loader, test_loader]
+    dataset = PygNodePropPredDataset('ogbn-proteins', root='../data')
+    splitted_idx = dataset.get_idx_split()
+    data = dataset[0]
+    data.node_species = None
+    data.y = data.y.to(torch.float)
+    
+    # Initialize features of nodes by aggregating edge features.
+    row, col = data.edge_index
+    data.x = scatter(data.edge_attr, col, 0, dim_size=data.num_nodes, reduce='add')
+    cfg.n_feat = cfg.e_feat
+
+    # Set split indices to masks.
+    for split in ['train', 'valid', 'test']:
+        mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        mask[splitted_idx[split]] = True
+        data[f'{split}_mask'] = mask
+
+    train_loader = RandomNodeSampler(data, num_parts=40, shuffle=True,
+                                     num_workers=5)
+    test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
+    data_loader = [train_loader, test_loader]
 
     mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
@@ -103,7 +122,8 @@ def main(cfg: DictConfig):
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))
 
-        return np.mean(test_acc)
+    return np.mean(test_acc)
     
+
 if __name__ == "__main__":
     main()

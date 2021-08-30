@@ -18,7 +18,8 @@ import torch.nn.functional as F
 from torch_scatter import scatter
 import torch_geometric.transforms as T
 from torch_geometric.datasets import PPI
-from torch_geometric.data import DataLoader
+from torch_geometric.data import RandomNodeSampler
+from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
 from models import return_net
 from utils import log_params_from_omegaconf_dict
@@ -27,46 +28,65 @@ from utils import log_params_from_omegaconf_dict
 def train(epoch, cfg, loader, model, optimizer, device):
     # train
     model.train()
-    criteria = torch.nn.BCEWithLogitsLoss()
 
     num_batches = len(loader)
-    for batch_id, data in enumerate(loader): # in [g1, g2, ..., g20]
+    for batch_id, data in enumerate(loader):
         data = data.to(device)
         optimizer.zero_grad()
         out, _ = model(data.x, data.edge_index)
-        loss = criteria(out, data.y)
+        out = F.log_softmax(out, dim=1)
+        loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask].view(-1))
         loss.backward()
         optimizer.step()
         mlflow.log_metric('loss', value=loss.item(), step=epoch*num_batches + batch_id)
 
-
+        
 @torch.no_grad()
-def test(cfg, loader, model, device):
+def test(cfg, loader, model, evaluator, device):
     model.eval()
 
-    ys, preds = [], []
+    y_true = {'train': [], 'valid': [], 'test': []}
+    y_pred = {'train': [], 'valid': [], 'test': []}
+
     for data in loader: # only one graph (=g1+g2)
         data = data.to(device)
-        ys.append(data.y)
-        out, alpha = model(data.x, data.edge_index)
-        preds.append((out > 0).float().cpu())
+        out, _ = model(data.x, data.edge_index)
+        out = out.argmax(dim=-1, keepdim=True)
+        for split in y_true.keys():
+            mask = data[f'{split}_mask']
+            y_true[split].append(data.y[mask].cpu())
+            y_pred[split].append(out[mask].cpu())
 
-    y    = torch.cat(ys, dim=0).to('cpu').detach().numpy().copy()
-    pred = torch.cat(preds, dim=0).to('cpu').detach().numpy().copy()
-    return f1_score(y, pred, average='micro') if pred.sum() > 0 else 0
+    train_acc = evaluator.eval({
+        'y_true': torch.cat(y_true['train'], dim=0),
+        'y_pred': torch.cat(y_pred['train'], dim=0),
+    })['acc']
+
+    valid_acc = evaluator.eval({
+        'y_true': torch.cat(y_true['valid'], dim=0),
+        'y_pred': torch.cat(y_pred['valid'], dim=0),
+    })['acc']
+
+    test_acc = evaluator.eval({
+        'y_true': torch.cat(y_true['test'], dim=0),
+        'y_pred': torch.cat(y_pred['test'], dim=0),
+    })['acc']
+
+    return test_acc
 
 
 def run(tri, cfg, data_loader, device):
-    train_loader, val_loader, test_loader = data_loader
+    train_loader, test_loader = data_loader
 
     model = return_net(cfg).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
                                  lr           = cfg['learning_rate'], 
                                  weight_decay = cfg['weight_decay'])
+    evaluator = Evaluator('ogbn-arxiv')
 
     for epoch in tqdm(range(1, cfg['epochs'])):
         train(epoch, cfg, train_loader, model, optimizer, device)
-    test_acc = test(cfg, test_loader, model, device)
+    test_acc = test(cfg, test_loader, model, evaluator, device)
     
     return test_acc, model
 
@@ -75,20 +95,26 @@ def run(tri, cfg, data_loader, device):
 def main(cfg: DictConfig):
     mlflow_runname = cfg.mlflow.runname
     cfg = cfg[cfg.key]
-    print(cfg)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
-    train_dataset = PPI(root.lower(), split='train')
-    val_dataset   = PPI(root.lower(), split='val')
-    test_dataset  = PPI(root.lower(), split='test')
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
-    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
-    data_loader = [train_loader, val_loader, test_loader]
+    dataset = PygNodePropPredDataset('ogbn-arxiv', root='../data')
+    splitted_idx = dataset.get_idx_split()
+    data = dataset[0].to(device)
+    
+    # Set split indices to masks.
+    for split in ['train', 'valid', 'test']:
+        mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        mask[splitted_idx[split]] = True
+        data[f'{split}_mask'] = mask
+    
+    train_loader = RandomNodeSampler(data, num_parts=5, shuffle=True,
+                                     num_workers=5)
+    test_loader = RandomNodeSampler(data, num_parts=5, num_workers=5)
+    data_loader = [train_loader, test_loader]
 
     mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
     mlflow.set_experiment(mlflow_runname)
@@ -103,7 +129,8 @@ def main(cfg: DictConfig):
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))
 
-        return np.mean(test_acc)
+    return np.mean(test_acc)
     
+
 if __name__ == "__main__":
     main()
