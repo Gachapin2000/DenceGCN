@@ -87,7 +87,12 @@ class AttentionSummarize(torch.nn.Module):
 
         elif self.summary_mode == 'roll':
             query = h.clone() # query's l-th row is h_i^l
-            key = torch.roll(query, -1, 1) # key's l-th row is h_i^(l+1)
+            key = torch.roll(h.clone(), -1, dims=1) # key's l-th row is h_i^(l+1)
+            query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
+
+        elif self.summary_mode == 'roll+':
+            query = h.clone() # query's l-th row is h_i^l
+            key = torch.roll(query, -1, dims=1) # key's l-th row is h_i^(l+1)
             query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
 
         elif self.summary_mode == 'lstm':
