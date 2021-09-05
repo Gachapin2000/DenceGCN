@@ -51,9 +51,9 @@ class AttGNN_SAGEConv(nn.Module):
         self.n_layer = cfg.n_layer
 
         self.convs = nn.ModuleList()
-        self.convs.append(GeneralConv(cfg.task, 'sage_conv', cfg.n_feat, cfg.n_hid, cfg.self_node))
+        self.convs.append(GeneralConv(cfg.task, 'sage_conv', cfg.n_feat, cfg.n_hid, cfg.self_node, cfg.norm))
         for _ in range(1, cfg.n_layer):
-            self.convs.append(GeneralConv(cfg.task, 'sage_conv', cfg.n_hid, cfg.n_hid, cfg.self_node))
+            self.convs.append(GeneralConv(cfg.task, 'sage_conv', cfg.n_hid, cfg.n_hid, cfg.self_node, cfg.norm))
 
         self.att = AttentionSummarize(summary_mode = cfg.summary_mode,
                                       att_mode     = cfg.att_mode, 
@@ -106,13 +106,13 @@ class AttGNN_GATConv(nn.Module):
         self.dropout = cfg.dropout
     
         self.convs = torch.nn.ModuleList()
-        in_conv = GeneralConv(cfg.task, 'gat_conv', cfg.n_feat, cfg.n_hid, cfg.self_node, 
+        in_conv = GeneralConv(cfg.task, 'gat_conv', cfg.n_feat, cfg.n_hid, cfg.self_node, cfg.norm,
                               n_heads=[1, cfg.n_head],
                               iscat=[False, cfg.iscat],
                               dropout=self.dropout)
         self.convs.append(in_conv)
         for _ in range(1, cfg.n_layer):
-            conv = GeneralConv(cfg.task, 'gat_conv', cfg.n_hid, cfg.n_hid, cfg.self_node, 
+            conv = GeneralConv(cfg.task, 'gat_conv', cfg.n_hid, cfg.n_hid, cfg.self_node, cfg.norm,
                                n_heads=[cfg.n_head, cfg.n_head],
                                iscat=[cfg.iscat, cfg.iscat],
                                dropout=self.dropout)

@@ -84,7 +84,6 @@ def main(cfg: DictConfig):
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = utils.get_original_cwd() + '/data/' + cfg.dataset
-    print(root)
     dataset = Planetoid(root          = root,
                         name          = cfg['dataset'],
                         seed          = 0,

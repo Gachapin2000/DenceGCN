@@ -75,16 +75,15 @@ def run(tri, cfg, data_loader, device):
 def main(cfg: DictConfig):
     mlflow_runname = cfg.mlflow.runname
     cfg = cfg[cfg.key]
-    print(cfg)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
+    root = utils.get_original_cwd() + '/data/' + cfg.dataset
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
-    train_dataset = PPI(root.lower(), split='train')
-    val_dataset   = PPI(root.lower(), split='val')
-    test_dataset  = PPI(root.lower(), split='test')
+    train_dataset = PPI(root, split='train')
+    val_dataset   = PPI(root, split='val')
+    test_dataset  = PPI(root, split='test')
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)

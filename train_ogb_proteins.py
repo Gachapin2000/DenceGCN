@@ -83,7 +83,7 @@ def main(cfg: DictConfig):
     cfg = cfg[cfg.key]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root='/home/yuru/Study/python/DenceGCN/data/ogbn_proteins'
+    root = utils.get_original_cwd() + '/data/' + cfg.dataset
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
