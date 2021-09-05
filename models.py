@@ -2,7 +2,6 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch.nn as nn
-from torch.nn import LayerNorm
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.parameter import Parameter
@@ -22,10 +21,9 @@ class AttGNN_GCNConv(nn.Module):
         self.dropout = cfg.dropout
 
         self.convs = nn.ModuleList()
-        self.convs.append(GeneralConv(cfg.task, 'gcn_conv', cfg.n_feat, cfg.n_hid, cfg.self_node))
+        self.convs.append(GeneralConv(cfg.task, 'gcn_conv', cfg.n_feat, cfg.n_hid, cfg.self_node, cfg.norm))
         for _ in range(1, cfg.n_layer):
-            self.convs.append(GeneralConv(cfg.task, 'gcn_conv', cfg.n_hid, cfg.n_hid, cfg.self_node))
-        self.norm = LayerNorm(cfg.n_hid, elementwise_affine=True)
+            self.convs.append(GeneralConv(cfg.task, 'gcn_conv', cfg.n_hid, cfg.n_hid, cfg.self_node, cfg.norm))
 
         self.att = AttentionSummarize(summary_mode = cfg.summary_mode,
                                       att_mode     = cfg.att_mode, 
@@ -39,7 +37,6 @@ class AttGNN_GCNConv(nn.Module):
         hs = []
         for conv in self.convs:
             x = conv(x, edge_index)
-            x = self.norm(x)
             x = F.dropout(F.relu(x), self.dropout, training=self.training)
             hs.append(x)
 

@@ -1,4 +1,4 @@
-key: AttGNN_OGBproteins
+key: AttGNN_Cora
 
 
 # -------hydra & mlflow & optuna-------
@@ -221,10 +221,11 @@ AttGNN: &AttGNN
   learning_rate: 0.005 # override >> GNN
   n_layer: 6
   n_hid: 16
+  norm: LayerNorm # [None, LayerNorm, BatchNorm1d]
   self_node: True
-  summary_mode: vanilla # [vanilla, roll, lstm]
-  att_mode: ad 
-  att_temparature: 1. # if set to 1, default attention of Jumping_Knowledge
+  summary_mode: roll # [vanilla, roll, lstm]
+  att_mode: ad # [ad, dp, mx]
+  att_temparature: 1. # if set to 1, default attention of Summarize
   learn_temparature: False
 
 AttGNN_Cora: &AttGNN_Cora

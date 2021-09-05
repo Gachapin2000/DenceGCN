@@ -1,0 +1,7 @@
+mlruns/*
+multirun/*
+data/*
+result/*
+outputs/*
+__pycache__/*
+debug/*

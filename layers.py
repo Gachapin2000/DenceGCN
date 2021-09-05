@@ -7,13 +7,14 @@ import math
 from tqdm import trange, tqdm
 
 from torch.nn import Module, Parameter, Linear, LSTM
+from torch.nn import LayerNorm, BatchNorm1d
 
 from torch_geometric.nn import MessagePassing, GATConv, GCNConv, SAGEConv, conv
 from torch_geometric.utils import add_self_loops, degree
 
 
 class GeneralConv(nn.Module):
-    def __init__(self, task, conv_name, in_channels, out_channels, self_node,
+    def __init__(self, task, conv_name, in_channels, out_channels, self_node, norm,
                  n_heads=[1, 1], iscat=[False, False], dropout=0.):
         super(GeneralConv, self).__init__()
         self.task = task
@@ -41,13 +42,20 @@ class GeneralConv(nn.Module):
                 if iscat[1]:
                     out_channels = out_channels * n_heads[1]
                 self.lin = nn.Linear(in_channels, out_channels)
+        
+        if norm != 'None':
+            self.norm = eval(norm + '(out_channels)')
 
 
     def forward(self, x, edge_index):
         if self.task == 'transductive':
-            return self.conv(x, edge_index)
+            x = self.conv(x, edge_index)
         elif self.task == 'inductive':
-            return self.conv(x, edge_index) + self.lin(x)
+            x = self.conv(x, edge_index) + self.lin(x)
+        if hasattr(self, 'norm'):
+            return self.norm(x)
+        else:
+            return x
 
 
 class AttentionSummarize(torch.nn.Module):

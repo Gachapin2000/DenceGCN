@@ -30,6 +30,7 @@ def train(epoch, cfg, data, model, optimizer, device):
 
     optimizer.zero_grad()
     out, _ = model(data.x, data.adj_t)
+    out = out.log_softmax(dim=-1)
     out = out[data['train_mask']]
     loss = F.nll_loss(out, data.y.squeeze(1)[data['train_mask']])
     loss.backward()
@@ -78,6 +79,7 @@ def run(tri, cfg, data, device):
 def main(cfg: DictConfig):
     mlflow_runname = cfg.mlflow.runname
     cfg = cfg[cfg.key]
+    print(cfg)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root='/home/yuru/Study/python/DenceGCN/data/ogbn_arxiv'
