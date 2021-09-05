@@ -84,6 +84,7 @@ def main(cfg: DictConfig):
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
+    print(root.lower())
     dataset = Planetoid(root          = root.lower(),
                         name          = cfg['dataset'],
                         seed          = 0,

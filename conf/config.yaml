@@ -1,4 +1,4 @@
-key: AttGNN_Cora
+key: AttGNN_OGBproteins
 
 
 # -------hydra & mlflow & optuna-------
@@ -43,11 +43,11 @@ hydra:
     #     type: categorical
     #     choices:
     #     - ?
-    #   AttGNN_PPI.jk_mode:
+    #   AttGNN_PPI.summary_mode:
     #     type: categorical
     #     choices:
-    #     - cat
-    #     - max
+    #     - vanilla
+    #     - roll
     #     - lstm
     #   AttGNN_PPI.att_mode:
     #     type: categorical
@@ -124,6 +124,22 @@ PPI: &PPI
   weight_decay: 0.    
   dropout: 0.
 
+OGB: &OGB
+  task: transductive
+  n_tri: 3
+
+OGBproteins: &OGBproteins
+  dataset: OGBproteins
+  <<: *OGB
+  n_feat: 1
+  e_feat: 8
+  n_class: 112
+
+OGBarxiv: &OGBarxiv
+  dataset: OGBarxiv
+  <<: *OGB
+  n_feat: 128
+  n_class: 40
   
 # -------models-------
 GNN: &GNN
@@ -206,9 +222,10 @@ AttGNN: &AttGNN
   n_layer: 6
   n_hid: 16
   self_node: True
-  summary_mode: lstm # [vanilla, roll, lstm]
-  att_mode: ad # this works iff jk_mode is lstm, [ad, dp, mx]
+  summary_mode: vanilla # [vanilla, roll, lstm]
+  att_mode: ad 
   att_temparature: 1. # if set to 1, default attention of Jumping_Knowledge
+  learn_temparature: False
 
 AttGNN_Cora: &AttGNN_Cora
   <<: [*Cora, *AttGNN]
@@ -240,9 +257,17 @@ AttGNN_toy: &AttGNN_toy
   dropout: 0.2
   n_hid: 2 # override >> AttGNN
   n_layer: 3 # override >> AttGNN
-  jk_mode: lstm
-  att_mode: ad # this works iff jk_mode is lstm, ['ad', 'dp', 'mx']
+  att_mode: ad
 
+AttGNN_OGBproteins: &AttGNN_OGBproteins
+  <<: [*OGBproteins, *AttGNN]
+  base_gnn: GCN
+  n_hid: 256 # override >> AttGNN
+
+AttGNN_OGBarxiv: &AttGNN_OGBarxiv
+  <<: [*OGBarxiv, *AttGNN]
+  base_gnn: GCN
+  n_hid: 128 # override >> AttGNN
 
 UniqGCN: &UniqGCN
   <<: *GNN
@@ -267,7 +292,7 @@ UniqGCN_PPI: &UniqGCN_PPI
   n_hid: 256
   n_head: 4
   iscat: True
-  jk_mode: lstm
+  summary_mode: lstm
   att_mode: ad
 
 UniqGCN_toy: &UniqGCN_toy

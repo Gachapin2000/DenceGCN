@@ -48,7 +48,7 @@ def test(cfg, loader, model, evaluator, device):
     ys, preds = [], []
     for data in loader: # only one graph (=g1+g2)
         data = data.to(device)
-        out, alpha = model(data.x, data.edge_index)
+        out, _ = model(data.x, data.edge_index)
         mask = data['test_mask']
         ys.append(data.y[mask].cpu())
         preds.append(out[mask].cpu())
@@ -83,11 +83,11 @@ def main(cfg: DictConfig):
     cfg = cfg[cfg.key]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    root = '~/Study/python/DenceGCN/data/{}_{}'.format(cfg['dataset'], cfg['pre_transform'])
+    root='/home/yuru/Study/python/DenceGCN/data/ogbn_proteins'
     
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
-    dataset = PygNodePropPredDataset('ogbn-proteins', root='../data')
+    dataset = PygNodePropPredDataset('ogbn-proteins', root)
     splitted_idx = dataset.get_idx_split()
     data = dataset[0]
     data.node_species = None

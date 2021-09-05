@@ -90,11 +90,6 @@ class AttentionSummarize(torch.nn.Module):
             key = torch.roll(h.clone(), -1, dims=1) # key's l-th row is h_i^(l+1)
             query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
 
-        elif self.summary_mode == 'roll+':
-            query = h.clone() # query's l-th row is h_i^l
-            key = torch.roll(query, -1, dims=1) # key's l-th row is h_i^(l+1)
-            query, key, h = query[:, :-1, :], key[:, :-1, :], h[:, :-1, :]
-
         elif self.summary_mode == 'lstm':
             alpha, _ = self.lstm(h) # alpha (n, L, dL). dL/2 is hid_channels of forward or backward LSTM
             out_channels = alpha.size()[-1]
@@ -104,7 +99,6 @@ class AttentionSummarize(torch.nn.Module):
         # attention takes query and key as input, alpha as output
         if self.att_mode == 'dp':
             alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
-            torch.mul(query, key)
 
         elif self.att_mode == 'ad':
             query_key = torch.cat([query, key], dim=-1)
