@@ -220,11 +220,11 @@ AttGNN: &AttGNN
   model: AttGNN
   learning_rate: 0.005 # override >> GNN
   n_layer: 6
-  n_hid: 16
-  norm: LayerNorm # [None, LayerNorm, BatchNorm1d]
+  n_hid: 32
+  norm: None # [None, LayerNorm, BatchNorm1d]
   self_node: True
   summary_mode: roll # [vanilla, roll, lstm]
-  att_mode: ad # [ad, dp, mx]
+  att_mode: wdp # [ad, dp, mx]
   att_temparature: 1. # if set to 1, default attention of Summarize
   learn_temparature: False
 
@@ -264,11 +264,14 @@ AttGNN_OGBproteins: &AttGNN_OGBproteins
   <<: [*OGBproteins, *AttGNN]
   base_gnn: GCN
   n_hid: 256 # override >> AttGNN
+  norm: LayerNorm # override >> AttGNN
 
 AttGNN_OGBarxiv: &AttGNN_OGBarxiv
   <<: [*OGBarxiv, *AttGNN]
   base_gnn: GCN
   n_hid: 128 # override >> AttGNN
+  norm: LayerNorm # override >> AttGNN
+
 
 UniqGCN: &UniqGCN
   <<: *GNN

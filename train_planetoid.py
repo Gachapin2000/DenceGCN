@@ -71,6 +71,7 @@ def run(tri, cfg, data, run_info, seed=None):
             bad_counter += 1
         if(bad_counter == cfg['patience']):
             break
+    print(model.att.weight)
 
     test_acc = test(cfg, data, model)
 
@@ -81,6 +82,7 @@ def run(tri, cfg, data, run_info, seed=None):
 def main(cfg: DictConfig):
     mlflow_runname = cfg.mlflow.runname
     cfg = cfg[cfg.key]
+    print(cfg)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     root = utils.get_original_cwd() + '/data/' + cfg.dataset

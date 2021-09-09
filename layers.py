@@ -69,18 +69,19 @@ class AttentionSummarize(torch.nn.Module):
             self.att_temparature = temparature
         
         if self.summary_mode == 'lstm':
-            out_channels_of_bi_lstm = (num_layers * channels) // 2
-            self.lstm = LSTM(channels, out_channels_of_bi_lstm,
-                             bidirectional=True, batch_first=True)
-            self.att = Linear(2*out_channels_of_bi_lstm, 1)
-
+            out_channels = (num_layers * channels) // 2
         else: # if self.summary_mode == 'vanilla' or 'roll'
-            self.att = Linear(2 * channels, 1)
+            out_channels = channels
+        
+        self.lstm = LSTM(channels, out_channels,
+                             bidirectional=True, batch_first=True)
+        self.att = Linear(2 * out_channels, 1)
+        self.weight = nn.Parameter(torch.ones(out_channels))
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        # self.lstm.reset_parameters()
+        self.lstm.reset_parameters()
         self.att.reset_parameters()
 
     def forward(self, hs):
@@ -107,6 +108,9 @@ class AttentionSummarize(torch.nn.Module):
         # attention takes query and key as input, alpha as output
         if self.att_mode == 'dp':
             alpha = (query * key).sum(dim=-1) / math.sqrt(query.size()[-1])
+        
+        elif self.att_mode == 'wdp':
+            alpha = (query * key * self.weight).sum(dim=-1) / math.sqrt(query.size()[-1])
 
         elif self.att_mode == 'ad':
             query_key = torch.cat([query, key], dim=-1)

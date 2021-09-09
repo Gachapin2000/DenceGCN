@@ -1,9 +1,7 @@
 IFS_BACKUP=$IFS
 IFS=$'\n'
 
-ary=("python3 train_ogb_proteins.py -m 'hydra.sweeper.n_trials=10' 'key=AttGNN_OGBproteins' 'mlflow.runname=AttGNN_OGBproteins' 'AttGNN_OGBproteins.n_tri=5' 'AttGNN_OGBproteins.epochs=1000' 'AttGNN_OGBproteins.learning_rate=0.01' 'AttGNN_OGBproteins.weight_decay=0.' 'AttGNN_OGBproteins.dropout=0.' 'AttGNN_OGBproteins.n_layer=5' 'AttGNN_OGBproteins.n_hid=256' 'AttGNN_OGBproteins.summary_mode=choice(vanilla,roll,lstm)' 'AttGNN_OGBproteins.att_mode=choice(ad,mx,dp)' 'AttGNN_OGBproteins.att_temparature=1.'
-      python3 train_ogb_proteins.py -m 'hydra.sweeper.n_trials=10' 'key=AttGNN_OGBproteins' 'mlflow.runname=AttGNN_OGBproteins' 'AttGNN_OGBproteins.n_tri=5' 'AttGNN_OGBproteins.epochs=1000' 'AttGNN_OGBproteins.learning_rate=0.01' 'AttGNN_OGBproteins.weight_decay=0.' 'AttGNN_OGBproteins.dropout=0.' 'AttGNN_OGBproteins.n_layer=6' 'AttGNN_OGBproteins.n_hid=256' 'AttGNN_OGBproteins.summary_mode=choice(vanilla,roll,lstm)' 'AttGNN_OGBproteins.att_mode=choice(ad,mx,dp)' 'AttGNN_OGBproteins.att_temparature=1.'
-      python3 train_ogb_arxiv.py -m 'hydra.sweeper.n_trials=300' 'key=AttGNN_OGBarxiv' 'mlflow.runname=AttGNN_OGBarxiv' 'AttGNN_OGBarxiv.n_tri=5' 'AttGNN_OGBarxiv.epochs=500' 'AttGNN_OGBarxiv.learning_rate=choice(0.01,0.005,0.001)' 'AttGNN_OGBarxiv.weight_decay=choice(0.001,0.0005,0.0001,0.)' 'AttGNN_OGBarxiv.dropout=choice(0.6,0.5,0.)' 'AttGNN_OGBarxiv.n_layer=range(2,6)' 'AttGNN_OGBarxiv.n_hid=choice(128,256)' 'AttGNN_OGBarxiv.summary_mode=choice(vanilla,roll)' 'AttGNN_OGBarxiv.att_mode=choice(ad,dp,mx)'")
+ary=("python3 train_ogb_proteins.py -m 'hydra.sweeper.n_trials=135' 'key=AttGNN_OGBproteins' 'mlflow.runname=AttGNN_OGBproteins' 'AttGNN_OGBproteins.n_tri=5' 'AttGNN_OGBproteins.epochs=1000' 'AttGNN_OGBproteins.learning_rate=0.01' 'AttGNN_OGBproteins.weight_decay=0.' 'AttGNN_OGBproteins.dropout=0.' 'AttGNN_OGBproteins.n_layer=range(2,6)' 'AttGNN_OGBproteins.n_hid=256' 'AttGNN_OGBproteins.summary_mode=choice(vanilla,roll,lstm)' 'AttGNN_OGBproteins.att_mode=choice(ad,dp,mx)' 'AttGNN_OGBarxiv.norm=choice(None,LayerNorm,BatchNorm1d)'")
 
 for STR in ${ary[@]}
 do
