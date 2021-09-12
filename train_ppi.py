@@ -37,7 +37,6 @@ def train(epoch, cfg, loader, model, optimizer, device):
         loss = criteria(out, data.y)
         loss.backward()
         optimizer.step()
-        mlflow.log_metric('loss', value=loss.item(), step=epoch*num_batches + batch_id)
 
 
 @torch.no_grad()
@@ -67,7 +66,8 @@ def run(tri, cfg, data_loader, device):
     for epoch in tqdm(range(1, cfg['epochs'])):
         train(epoch, cfg, train_loader, model, optimizer, device)
     test_acc = test(cfg, test_loader, model, device)
-    
+    mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
+
     return test_acc, model
 
 
@@ -89,18 +89,16 @@ def main(cfg: DictConfig):
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
     data_loader = [train_loader, val_loader, test_loader]
 
-    mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
+    mlflow.set_tracking_uri('http://localhost:5000/')
     mlflow.set_experiment(mlflow_runname)
     with mlflow.start_run():
-        log_params_from_omegaconf_dict(cfg)
         test_acc = np.zeros(cfg['n_tri'])
         for tri in range(cfg['n_tri']):
-            test_acc[tri], model = run(tri, cfg, data_loader, device)
-            mlflow.log_metric('acc', value=test_acc[tri], step=tri)
-            mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
+            test_acc[tri] = run(tri, cfg, data_loader, device)
         mlflow.log_metric('acc_mean', value=np.mean(test_acc))
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))
+        log_params_from_omegaconf_dict(cfg)
 
         return np.mean(test_acc)
     

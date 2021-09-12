@@ -1,7 +1,7 @@
 IFS_BACKUP=$IFS
 IFS=$'\n'
 
-ary=("python3 train_ogb_proteins.py -m 'hydra.sweeper.n_trials=135' 'key=AttGNN_OGBproteins' 'mlflow.runname=AttGNN_OGBproteins' 'AttGNN_OGBproteins.n_tri=5' 'AttGNN_OGBproteins.epochs=1000' 'AttGNN_OGBproteins.learning_rate=0.01' 'AttGNN_OGBproteins.weight_decay=0.' 'AttGNN_OGBproteins.dropout=0.' 'AttGNN_OGBproteins.n_layer=range(2,6)' 'AttGNN_OGBproteins.n_hid=256' 'AttGNN_OGBproteins.summary_mode=choice(vanilla,roll,lstm)' 'AttGNN_OGBproteins.att_mode=choice(ad,dp,mx)' 'AttGNN_OGBarxiv.norm=choice(None,LayerNorm,BatchNorm1d)'")
+ary=("python3 train_ogb_proteins.py -m 'hydra.sweeper.n_trials=15' 'key=AttGNN_OGBproteins' 'mlflow.runname=AttGNN_OGBproteins' 'AttGNN_OGBproteins.n_tri=5' 'AttGNN_OGBproteins.epochs=1000' 'AttGNN_OGBproteins.learning_rate=0.01' 'AttGNN_OGBproteins.weight_decay=0.' 'AttGNN_OGBproteins.dropout=0.' 'AttGNN_OGBproteins.n_layer=range(2,6)' 'AttGNN_OGBproteins.n_hid=256' 'AttGNN_OGBproteins.summary_mode=choice(vanilla,roll,lstm)' 'AttGNN_OGBproteins.att_mode=wdp'")
 
 for STR in ${ary[@]}
 do

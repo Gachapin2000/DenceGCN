@@ -39,9 +39,8 @@ def train(epoch, cfg, data, model, optimizer):
     prob_labels_val = F.log_softmax(h, dim=1)
     loss_val = F.nll_loss(prob_labels_val[data.val_mask], data.y[data.val_mask])
 
-    mlflow.log_metric('loss', value=loss_val.item(), step=epoch)
+    return loss_val.item()
 
-    return loss_val
 
 def test(cfg, data, model):
     model.eval()
@@ -52,7 +51,7 @@ def test(cfg, data, model):
     return acc
 
 
-def run(tri, cfg, data, run_info, seed=None):
+def run(tri, cfg, data, seed=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = return_net(cfg).to(device)
     optimizer = torch.optim.Adam(params       = model.parameters(), 
@@ -61,6 +60,7 @@ def run(tri, cfg, data, run_info, seed=None):
 
     best_loss = 100.
     bad_counter = 0
+    loss = []
     for epoch in range(1, cfg['epochs']):
         loss_val = train(epoch, cfg, data, model, optimizer)
 
@@ -71,11 +71,11 @@ def run(tri, cfg, data, run_info, seed=None):
             bad_counter += 1
         if(bad_counter == cfg['patience']):
             break
-    print(model.att.weight)
 
     test_acc = test(cfg, data, model)
+    mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
 
-    return test_acc, model
+    return test_acc
 
 
 @hydra.main(config_path='conf', config_name='config')
@@ -94,15 +94,12 @@ def main(cfg: DictConfig):
                         pre_transform = eval(cfg['pre_transform']))
     data = dataset[0].to(device)
 
-    mlflow.set_tracking_uri(utils.get_original_cwd() + '/mlruns')
+    mlflow.set_tracking_uri('http://localhost:5000/')
     mlflow.set_experiment(mlflow_runname)
     with mlflow.start_run():
-        run_info = mlflow.active_run().info
         test_acc = np.zeros(cfg['n_tri'])
         for tri in tqdm(range(cfg['n_tri'])):
-            test_acc[tri], model = run(tri, cfg, data, run_info, seed=tri)
-            mlflow.log_metric('acc', value=test_acc[tri], step=tri)
-            mlflow.pytorch.log_model(model, artifact_path='{}-th_model'.format(tri))
+            test_acc[tri] = run(tri, cfg, data, seed=tri)
         mlflow.log_metric('acc_mean', value=np.mean(test_acc))
         mlflow.log_metric('acc_max', value=np.max(test_acc))
         mlflow.log_metric('acc_min', value=np.min(test_acc))

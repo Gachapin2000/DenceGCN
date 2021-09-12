@@ -224,7 +224,7 @@ AttGNN: &AttGNN
   norm: None # [None, LayerNorm, BatchNorm1d]
   self_node: True
   summary_mode: roll # [vanilla, roll, lstm]
-  att_mode: wdp # [ad, dp, mx]
+  att_mode: ad # [ad, dp, wdp, mx]
   att_temparature: 1. # if set to 1, default attention of Summarize
   learn_temparature: False
 
